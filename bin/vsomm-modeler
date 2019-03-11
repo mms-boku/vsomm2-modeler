@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+
+from vsomm_modeler.system import System
+
+import os
+import argparse
+import tempfile
+import random
+import numpy as np
+
+
+def main(args):
+
+    # initialization
+    print("[+] Gen system")
+    system = System(**args)
+    #system.gen_system()
+    system.gen_system_ga()
+    #print(system.counterion, system.counterions, system.current_state.charge)
+    system.set_counterions()
+    #print(system.counterion, system.counterions, system.current_state.charge)
+    system.gen_molecules()
+    #print(system.counterion, system.counterions, system.current_state.charge)
+    #system.statistics()
+
+    # molecules
+    print("[+] Gen molecules")
+    system.gen_topology()
+    system.gen_coordinates()
+    system.mol_assembly()
+    system.fix_hydrogens()
+    # md for each molecule
+    system.minimize()
+    system.equilibrate()
+
+    # system
+    system.combine_topologies()
+    system.solvation()
+    system.ionize()
+    # md of the system
+    system.minimize_system()
+    system.equilibrate_system()
+    system.production_system()
+
+    system.statistics()
+    system.get_system_pdb()
+    system.retrieve_data()
+
+
+if __name__ == "__main__":
+    #parser = argparse.ArgumentParser()
+
+    parser = argparse.ArgumentParser(
+        prog='modeler.py',
+        formatter_class=lambda prog: argparse.HelpFormatter(prog, max_help_position=60))
+
+    class Range(object):
+        "To require an argument to be a float between 0.0-1.0 using argparse"
+
+        def __init__(self, start, end):
+            self.start = start
+            self.end = end
+
+        def __eq__(self, other):
+            return self.start <= other <= self.end
+
+        def __repr__(self):
+            return '{0}-{1}'.format(self.start, self.end)
+
+    # General configuration
+
+    parser.add_argument('--model', default="Model", help="Model name")
+    #parser.add_argument('--type', default="advanced", choices=["basic", "advanced", "random"], help="Type of input")
+
+    parser.add_argument('--number-of-building-blocks', type=int, default=0,
+                        help="Total number of Building Blocks", required=True)
+    parser.add_argument('--building-blocks-per-molecule', type=int, default=0,
+                        help="Building Blocks per molecule", required=True)
+    parser.add_argument('--water-molecules', type=int, default=1500,
+                        help="Number of water molecules", required=True)
+    parser.add_argument('--pH', type=float, default=7.0, choices=[Range(1, 14)], help="pH", required=False)
+    parser.add_argument('--logK1', type=float, default=4.76, choices=[Range(1, 14)], help="logK1", required=False)
+    parser.add_argument('--counterion', choices=["Ca2+", "Na+"],
+                        default="Na+", help="Ion", required=False)
+    parser.add_argument('--initial-density', type=int, default=900,
+                        help="Initial density", required=False)
+
+    # Elemental composition
+    elemental = parser.add_argument_group('elemental composition')
+    elemental.add_argument('--carbon-fraction', type=float,
+                           choices=[Range(0.3, 1.0)], help="Carbon fraction", required=True)
+    elemental.add_argument('--hydrogen-fraction', type=float, default=0.0, help=argparse.SUPPRESS, required=False)
+    elemental.add_argument('--oxygen-fraction', type=float, default=0.0, help=argparse.SUPPRESS, required=False)
+    elemental.add_argument('--nitrogen-fraction', type=float,
+                           choices=[Range(0.0, 1.0)], help="Nitrogen fraction", required=True)
+    elemental.add_argument('--sulphur-fraction', type=float, default=0.0, help=argparse.SUPPRESS, required=False)
+
+    subparser = parser.add_subparsers(dest="assignment", help='commands')
+    subparser.required = True
+    orgcomp_IHSS = subparser.add_parser('IHSS', help='List contents')
+    orgcomp_IHSS.add_argument('--carbonyl-fraction', type=float,
+                              choices=[Range(0.0, 1.0)], help="Ketone/Quinone fraction", required=True)
+    orgcomp_IHSS.add_argument('--carboxyl-fraction', type=float,
+                              choices=[Range(0.0, 1.0)], help="Carboxyl fraction", required=True)
+    orgcomp_IHSS.add_argument('--aromatic-fraction', type=float,
+                              choices=[Range(0.0, 1.0)], help="Aromatic fraction", required=True)
+    orgcomp_IHSS.add_argument('--acetal-fraction', type=float,
+                              choices=[Range(0.0, 1.0)], help="Acetal/aromatic fraction", required=True)
+    orgcomp_IHSS.add_argument('--heteroaliphatic-fraction', type=float,
+                              choices=[Range(0.0, 1.0)], help="Heteroaliphatic fraction", required=True)
+    orgcomp_IHSS.add_argument('--aliphatic-fraction', type=float,
+                              choices=[Range(0.0, 1.0)], help="Aliphatic fraction", required=True)
+
+    orgcomp_NMR = subparser.add_parser('SSNMR', help='List contents')
+    orgcomp_NMR.add_argument('--carbonyl-c-fraction', type=float,
+                             choices=[Range(0.0, 1.0)], help="Carbonyl-C fraction", required=True)
+    orgcomp_NMR.add_argument('--carboxyl-c-fraction', type=float,
+                             choices=[Range(0.0, 1.0)], help="Carboxyl-C fraction", required=True)
+    orgcomp_NMR.add_argument('--o-aryl-fraction', type=float,
+                             choices=[Range(0.0, 1.0)], help="O-Aryl fraction", required=True)
+    orgcomp_NMR.add_argument('--aryl-fraction', type=float,
+                             choices=[Range(0.0, 1.0)], help="Aryl fraction", required=True)
+    orgcomp_NMR.add_argument('--di-o-alkyl-fraction', type=float,
+                             choices=[Range(0.0, 1.0)], help="Di-O-Alkyl fraction", required=True)
+    orgcomp_NMR.add_argument('--o-alkyl-fraction', type=float,
+                             choices=[Range(0.0, 1.0)], help="O-Alkyl fraction", required=True)
+    orgcomp_NMR.add_argument('--methoxyl-fraction', type=float,
+                             choices=[Range(0.0, 1.0)], help="Methoxyl fraction", required=True)
+    orgcomp_NMR.add_argument('--alkyl-c-fraction', type=float,
+                             choices=[Range(0.0, 1.0)], help="Alkyl-C fraction", required=True)
+
+    # Path configuration
+    config = parser.add_argument_group('configuration')
+    config.add_argument('--seed', type=int, default=random.randint(0, 999999), help="seed")
+    config.add_argument('--multiprocessing-enabled', default=False, action="store_true", help="Enable multiprocessing")
+    config.add_argument('--num-threads', default=8, type=int, help="Number of threads")
+    config.add_argument('--vsomm-building-blocks-dir', help="VSOMM building blocks directory",
+                        default=os.environ.get("VSOMM_BUILDING_BLOCKS"))
+    config.add_argument('--gromos-bin-dir', help="GROMOS binaries", default=os.environ.get("GROMOS_BIN"))
+    config.add_argument('--workdir', default=tempfile.mkdtemp(), help="Working directory (temp files)")
+    args = parser.parse_args()
+
+    if not args.gromos_bin_dir or not args.vsomm_building_blocks_dir:
+        exit(parser.print_usage())
+
+    if (args.number_of_building_blocks % args.building_blocks_per_molecule != 0):
+        parser.error("The number of building_blocks (number_of_building_blocks:%s) must be a multiply of the number of building_blocks per molecule (building_blocks_per_molecule:%s)" % (
+            args.number_of_building_blocks, args.building_blocks_per_molecule))
+
+    sum_fractions = args.carbon_fraction + args.nitrogen_fraction
+    if np.around(sum_fractions, decimals=3) >= 1.000:
+        parser.error("Sum of fractions of elemental composition must be\n lower than 1, current sum is: " + str(sum_fractions))
+
+    if args.assignment == "SSNMR":
+        sum_fractions = args.carbonyl_c_fraction + args.carboxyl_c_fraction + args.o_aryl_fraction + args.aryl_fraction + \
+            args.di_o_alkyl_fraction + args.o_alkyl_fraction + args.methoxyl_fraction + args.alkyl_c_fraction
+    elif args.assignment == "IHSS":
+        sum_fractions = args.carbonyl_fraction + args.carboxyl_fraction + args.aromatic_fraction + \
+            args.acetal_fraction + args.heteroaliphatic_fraction + args.aliphatic_fraction
+
+    if np.abs(sum_fractions - 1.00) > 0.02:
+        parser.error(
+            "Sum of fractions of organic compounds composition\n must be equal to 1, current sum is: " + str(sum_fractions))
+    elif np.abs(sum_fractions - 1.00) != 0.00:
+        #raise Warning("Sum of fractions of organic compounds composition\n must be equal to 1, current sum is: " + str(sum_fractions))
+        print("Sum of fractions of organic compounds composition\n must be equal to 1, current sum is: " + str(sum_fractions))
+
+    print(args)
+    args = vars(args)
+    main(args)
