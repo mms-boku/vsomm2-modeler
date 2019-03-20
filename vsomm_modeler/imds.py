@@ -278,7 +278,7 @@ WRITETRAJ
 # =0: write normal trajectory
 # >0: chose min energy for writing configurations
 #     NTWX     NTWSE      NTWV      NTWF    NTWE      NTWG      NTWB
-       100         0         0         0     100         0         0
+         0         0         0         0     100         0         0
 END
 # every 100 steps print the energy in the output file.
 PRINTOUT
@@ -416,7 +416,7 @@ WRITETRAJ
 # =0: write normal trajectory
 # >0: chose min energy for writing configurations
 #     NTWX     NTWSE      NTWV      NTWF    NTWE      NTWG      NTWB
-       100         0         0         0     100         0         0
+         0         0         0         0     100         0         0
 END
 # every 100 steps print the energy in the output file.
 PRINTOUT

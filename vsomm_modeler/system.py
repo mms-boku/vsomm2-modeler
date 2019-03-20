@@ -29,7 +29,7 @@ class System():
                  multiprocessing_enabled=False, num_threads=8,
                  vsomm_building_blocks_dir=os.environ.get("VSOMM_BUILDING_BLOCKS"),
                  gromos_bin_dir=os.environ.get("GROMOS_BIN"),
-                 workdir=tempfile.mkdtemp(),
+                 workdir=tempfile.mkdtemp(), debug=False,
                  **kwargs):
         """ Initialization of the system."""
 
@@ -53,6 +53,7 @@ class System():
         self.vsomm_building_blocks_dir = vsomm_building_blocks_dir
         self.gromos_bin_dir = gromos_bin_dir
         self.workdir = workdir
+        self.debug = debug
 
         self.states = {
             'IHSS': State_IHSS,
@@ -504,6 +505,9 @@ class System():
             command = "{pdb2g96} @topo {topo} @pdb {pdb} @lib {lib} > {output}".format(**input_pdb2g96)
             self.run_command(command)
 
+            if not self.debug:
+                os.remove(input_pdb2g96["pdb"])
+
     def mol_assembly(self):
         """Molecular assembly in accordance to the bond a angle information of building blocks."""
 
@@ -538,6 +542,9 @@ class System():
                 **input_gca)
             self.run_command(command)
 
+            if not self.debug:
+                os.remove(input_gca["traj"])
+
     def fix_hydrogens(self):
         """Add or fix the position of hydrogens in the molecules."""
 
@@ -553,6 +560,9 @@ class System():
             command = "{gch} @topo {topo} @pos {cnf} @tol 0.1 @pbc v > {output}".format(**input_gch)
             self.run_command(command)
 
+            if not self.debug:
+                os.remove(input_gch['cnf'])
+
     def minimize(self):
         """Minimize each molecule."""
 
@@ -565,6 +575,7 @@ class System():
             ["min2_", "min3_", 50000, 1, 3]
         ]
 
+        to_clean = []
         for prefix_in, prefix_out, steps, charge, shake in jobs:
 
             if self.multiprocessing_enabled:
@@ -606,14 +617,26 @@ class System():
                 else:
                     self.run_command(command)
 
+
+                if not self.debug:
+                        to_clean.extend([input_min['conf'], input_min['input'], input_min['output']])
+
             if self.multiprocessing_enabled:
                 pool.close()
                 pool.join()
 
 
+            if not self.debug:
+                for c in to_clean:
+                    os.remove(c)
+                to_clean = []
+
+
+
     def equilibrate(self):
         """Equilibration of each molecule."""
 
+        to_clean = []
         if self.multiprocessing_enabled:
             pool = multiprocessing.Pool(processes=self.num_threads)
 
@@ -654,9 +677,18 @@ class System():
             else:
                 self.run_command(command)
 
+            if not self.debug:
+                to_clean.extend([input_eq['conf'], input_eq['input'], input_eq['output']])
+
         if self.multiprocessing_enabled:
             pool.close()
             pool.join()
+
+        if not self.debug:
+            for c in to_clean:
+                os.remove(c)
+
+
 
     def combine_topologies(self):
         """Combine the topologies of the different molecules."""
@@ -669,6 +701,10 @@ class System():
 
         command = "{com_top} @topo {topo} @param 1 @solv 1 > {output}".format(**input_com_top)
         self.run_command(command)
+
+        if not self.debug:
+            for m in range(len(self.molecules)):
+                os.remove(self.workdir + "/mol_" + str(m) + ".top")
 
     def set_counterions(self):
         valence = {'Na+': 1, 'Ca2+': 2}
@@ -715,6 +751,10 @@ class System():
             **input_ran_box)
         self.run_command(command)
 
+        if not self.debug:
+            for m in range(len(self.molecules)):
+                os.remove(self.workdir + "/eq_mol_" + str(m) + ".cnf")
+
     def ionize(self):
         """Ionization of the system"""
 
@@ -741,6 +781,10 @@ class System():
         command = "{ion} @topo {topo} @pos {pos} @pbc r @positive {charge} {chargename} \
                 @potential 1.4 @mindist 0.25 > {output}".format(**input_ion)
         self.run_command(command)
+
+        if not self.debug:
+            os.remove(input_ion['topo'])
+            os.remove(input_ion['pos'])
 
     def get_system_pdb(self):
         """Obtain PDB of the system."""
@@ -925,12 +969,18 @@ mass:           {mass:.3f}
         input_min['fin'] = self.workdir + "/min_system.cnf"
         input_min['input'] = self.workdir + "/min_system.imd"
         input_min['output'] = self.workdir + "/min_system.omd"
-        input_min['trc'] = self.workdir + "/min_system.trc"
+        #input_min['trc'] = self.workdir + "/min_system.trc"
         input_min['tre'] = self.workdir + "/min_system.tre"
-        command = "export OMP_NUM_THREADS=4 && {md} @topo {topo} @conf {conf} @fin {fin} @input {input} @trc {trc} @tre {tre}  > {output}".format(
-            **input_min)
-
+        #command = "export OMP_NUM_THREADS=4 && {md} @topo {topo} @conf {conf} @fin {fin} @input {input} @trc {trc} @tre {tre}  > {output}".format(**input_min)
+        command = "export OMP_NUM_THREADS=4 && {md} @topo {topo} @conf {conf} @fin {fin} @input {input} @tre {tre}  > {output}".format(**input_min)
         self.run_command(command)
+
+        if not self.debug:
+            print("Removing: ",input_min['conf'],input_min['input'],input_min['output'],input_min['tre'])
+            os.remove(input_min['conf'])
+            os.remove(input_min['input'])
+            os.remove(input_min['output'])
+            os.remove(input_min['tre'])
 
     def equilibrate_system(self):
         """Equilibration of the system."""
@@ -978,12 +1028,19 @@ mass:           {mass:.3f}
             input_eq['fin'] = self.workdir + "/" + prefix_out + "_system.cnf"
             input_eq['input'] = self.workdir + "/" + prefix_out + "_system.imd"
             input_eq['output'] = self.workdir + "/" + prefix_out + "_system.omd"
-            input_eq['trc'] = self.workdir + "/" + prefix_out + "_system.trc"
+            #input_eq['trc'] = self.workdir + "/" + prefix_out + "_system.trc"
             input_eq['tre'] = self.workdir + "/" + prefix_out + "_system.tre"
-            command = "export OMP_NUM_THREADS=4 && {md} @topo {topo} @conf {conf} @fin {fin} @input {input} @trc {trc} @tre {tre}  > {output}".format(
+            #command = "export OMP_NUM_THREADS=4 && {md} @topo {topo} @conf {conf} @fin {fin} @input {input} @trc {trc} @tre {tre}  > {output}".format(
+            command = "export OMP_NUM_THREADS=4 && {md} @topo {topo} @conf {conf} @fin {fin} @input {input} @tre {tre}  > {output}".format(
                 **input_eq)
 
             self.run_command(command)
+
+            if not self.debug:
+                os.remove(input_eq['conf'])
+                os.remove(input_eq['input'])
+                os.remove(input_eq['output'])
+                os.remove(input_eq['tre'])
 
     def production_system(self):
         """Write production file."""
@@ -1002,7 +1059,7 @@ mass:           {mass:.3f}
 
         #input_md['md'] = self.gromos_bin_dir + "/md_omp"
         #input_md['topo'] = self.workdir + "/system_ions.top"
-        #input_md['conf'] = self.workdir + "/eq_system.cnf"
+        #input_md['conf'] = self.workdir + "/eq3_system.cnf"
         #input_md['fin'] = self.workdir + "/md_system.cnf"
         #input_md['input'] = self.workdir + "/md_system.imd"
         #input_md['output'] = self.workdir + "/md_system.omd"
@@ -1012,15 +1069,21 @@ mass:           {mass:.3f}
 
         # self.run_command(command)
 
+
     def retrieve_data(self, output_path=None):
         """Retrieve data of the system."""
 
         if output_path is None:
             output_path = "."
 
-        command = "cp {path}/min_system.cnf {path}/eq*_system.cnf {path}/system_ions.top {path}/min_system.trc {path}/min_system.tre {path}/eq*_system.trc {path}/eq*_system.tre {path}/stats.txt {path}/md_system.imd {output_path}".format(path=self.workdir, output_path=output_path)
+        if self.debug:
+            command = "cp {path}/min_system.cnf {path}/eq*_system.cnf {path}/system_ions.top {path}/min_system.trc {path}/min_system.tre {path}/eq*_system.trc {path}/eq*_system.tre {path}/stats.txt {path}/md_system.imd {output_path}".format(path=self.workdir, output_path=output_path)
         #command = "cp {path}/system_ions.top {path}/system_ions.cnf {path}/stats.txt {output_path}".format(path=self.workdir, output_path=output_path)
-        self.run_command(command)
+            self.run_command(command)
+        else:
+            command = "cp {path}/eq3_system.cnf {path}/system_ions.top {path}/stats.txt {path}/md_system.imd {output_path}".format(path=self.workdir, output_path=output_path)
+        #command = "cp {path}/system_ions.top {path}/system_ions.cnf {path}/stats.txt {output_path}".format(path=self.workdir, output_path=output_path)
+            self.run_command(command)
 
     def run_command(self, command):
         """Function to run the GROMOS commands."""

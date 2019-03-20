@@ -34,8 +34,8 @@ def main(args):
     system.equilibrate()
 
     # system
-    system.combine_topologies()
     system.solvation()
+    system.combine_topologies()
     system.ionize()
     # md of the system
     system.minimize_system()
@@ -138,6 +138,7 @@ if __name__ == "__main__":
                         default=os.environ.get("VSOMM_BUILDING_BLOCKS"))
     config.add_argument('--gromos-bin-dir', help="GROMOS binaries", default=os.environ.get("GROMOS_BIN"))
     config.add_argument('--workdir', default=tempfile.mkdtemp(), help="Working directory (temp files)")
+    config.add_argument('--debug', default=False, action="store_true", help="Debug mode")
     args = parser.parse_args()
 
     if not args.gromos_bin_dir or not args.vsomm_building_blocks_dir:
