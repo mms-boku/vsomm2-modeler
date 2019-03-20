@@ -1081,7 +1081,7 @@ mass:           {mass:.3f}
         #command = "cp {path}/system_ions.top {path}/system_ions.cnf {path}/stats.txt {output_path}".format(path=self.workdir, output_path=output_path)
             self.run_command(command)
         else:
-            command = "cp {path}/eq3_system.cnf {path}/system_ions.top {path}/stats.txt {path}/md_system.imd {output_path}".format(path=self.workdir, output_path=output_path)
+            command = "cp {path}/eq3_system.cnf {path}/eq3_system.pdb {path}/system_ions.top {path}/stats.txt {path}/md_system.imd {output_path}".format(path=self.workdir, output_path=output_path)
         #command = "cp {path}/system_ions.top {path}/system_ions.cnf {path}/stats.txt {output_path}".format(path=self.workdir, output_path=output_path)
             self.run_command(command)
 
