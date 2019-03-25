@@ -796,10 +796,10 @@ class System():
         # input_frameout['output'] = self.workdir + "/system_ions.pdb"
 
         # FRAMEOUT DOESNT HAVE A OUTPUT FLAG :@
-        command = "{frameout} @topo {topo} @traj {traj} @pbc r cog @outformat pdb \
-                @include ALL @time 0 0.5".format(**input_frameout)
+        command = "cd {workdir} && {frameout} @topo {topo} @traj {traj} @pbc r cog @outformat pdb \
+                @include ALL @time 0 0.5".format(**input_frameout, workdir=self.workdir)
         self.run_command(command)
-        command = "mv FRAME_00001.pdb eq3_system.pdb"
+        command = "mv {workdir}/FRAME_00001.pdb {workdir}/eq3_system.pdb".format(workdir=self.workdir)
         self.run_command(command)
 
     def statistics(self):
@@ -1077,7 +1077,7 @@ mass:           {mass:.3f}
             output_path = "."
 
         if self.debug:
-            command = "cp {path}/min_system.cnf {path}/eq*_system.cnf {path}/system_ions.top {path}/min_system.trc {path}/min_system.tre {path}/eq*_system.trc {path}/eq*_system.tre {path}/stats.txt {path}/md_system.imd {output_path}".format(path=self.workdir, output_path=output_path)
+            command = "cp {path}/min_system.cnf {path}/eq*_system.cnf {path}/system_ions.top {path}/min_system.tre {path}/eq*_system.tre {path}/stats.txt {path}/md_system.imd {output_path}".format(path=self.workdir, output_path=output_path)
         #command = "cp {path}/system_ions.top {path}/system_ions.cnf {path}/stats.txt {output_path}".format(path=self.workdir, output_path=output_path)
             self.run_command(command)
         else:
