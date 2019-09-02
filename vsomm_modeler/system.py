@@ -23,13 +23,16 @@ class System():
     """
 
     def __init__(self, model=None, number_of_building_blocks=200,
-                 building_blocks_per_molecule=5, water_molecules=1000,
-                 counterion="Na+", pH=7.0, logK1=4.76, initial_density=900,
-                 seed=random.randint(0, 999999), assignment="IHSS",
+                 building_blocks_per_molecule=5, water_molecules=None,
+                 counterion="Na+", ionrandom=False,
+                 pH=7.0, logK1=4.76, initial_density=900, boxsize=None,
+                 seed=random.randint(0, 999999), seed_gen_algorithm=None,
+                 assignment="IHSS",
                  multiprocessing_enabled=False, num_threads=8,
                  vsomm_building_blocks_dir=os.environ.get("VSOMM_BUILDING_BLOCKS"),
                  gromos_bin_dir=os.environ.get("GROMOS_BIN"),
                  workdir=tempfile.mkdtemp(), debug=False,
+                 run_equilibration=False, togromacs=False,
                  **kwargs):
         """ Initialization of the system."""
 
@@ -40,13 +43,17 @@ class System():
         self.kwargs = kwargs
         self.counterion = counterion
         self.counterions = 0
+        self.ionrandom = ionrandom
 
         # include these properties to the input_state
         self.kwargs['pH'] = pH
-        self.kwargs['deprot_prot_fraction'] = 10**(pH - logK1)
+        self.deprot_prot_fraction = 10**(pH - logK1)
+        self.kwargs['deprot_prot_fraction'] = self.deprot_prot_fraction
 
         self.initial_density = initial_density
+        self.boxsize = boxsize
         self.seed = seed
+        self.seed_gen_algorithm = seed_gen_algorithm
         self.multiprocessing_enabled = multiprocessing_enabled
         self.num_threads = num_threads
         self.assignment = assignment
@@ -54,6 +61,8 @@ class System():
         self.gromos_bin_dir = gromos_bin_dir
         self.workdir = workdir
         self.debug = debug
+        self.run_equilibration = run_equilibration
+        self.togromacs = togromacs
 
         self.states = {
             'IHSS': State_IHSS,
@@ -172,7 +181,13 @@ class System():
 
         ngen = 1000
         condition = True
-        seed = self.seed
+
+        # in order to mantain the seed for the creation of molecules   
+        if self.seed_gen_algorithm:
+            seed = self.seed_gen_algorithm
+        else:
+            seed = self.seed
+
         attempt = 0
 
         #while condition and attempt < 1:
@@ -508,11 +523,11 @@ class System():
             if not self.debug:
                 os.remove(input_pdb2g96["pdb"])
 
+    # TODO: fix this for the case of 1 bb per molecule
     def mol_assembly(self):
         """Molecular assembly in accordance to the bond a angle information of building blocks."""
 
         for m, mol in enumerate(self.molecules):  # no take in consideration the start_end_group
-
             # calcular numero de atomos en current_state
             list_gca = []
             atomnum = 0
@@ -545,6 +560,7 @@ class System():
             if not self.debug:
                 os.remove(input_gca["traj"])
 
+    # TODO: fix this for the case of 1 bb per molecule
     def fix_hydrogens(self):
         """Add or fix the position of hydrogens in the molecules."""
 
@@ -554,7 +570,10 @@ class System():
             input_gch = {}
             input_gch['gch'] = self.gromos_bin_dir + "gch"
             input_gch['topo'] = self.workdir + "/mol_" + str(m) + ".top"
+
+            #input_gch['cnf'] = "%s/pdb2g96_mol_%s.cnf" % (self.workdir, m)
             input_gch['cnf'] = "%s/gca_mol_%s.cnf" % (self.workdir, m)
+
             input_gch['output'] = "%s/mol_%s.cnf" % (self.workdir, m)
 
             command = "{gch} @topo {topo} @pos {cnf} @tol 0.1 @pbc v > {output}".format(**input_gch)
@@ -702,9 +721,9 @@ class System():
         command = "{com_top} @topo {topo} @param 1 @solv 1 > {output}".format(**input_com_top)
         self.run_command(command)
 
-        if not self.debug:
-            for m in range(len(self.molecules)):
-                os.remove(self.workdir + "/mol_" + str(m) + ".top")
+    #    if not self.debug:
+    #        for m in range(len(self.molecules)):
+    #            os.remove(self.workdir + "/mol_" + str(m) + ".top")
 
     def set_counterions(self):
         valence = {'Na+': 1, 'Ca2+': 2}
@@ -730,8 +749,65 @@ class System():
         self.topo_counterion = topofiles[self.counterion]
         self.counterions = int(-1 * self.current_state.charge / valence[self.counterion])
 
+    def set_pH(self):
+        for position, building_block in enumerate(self.current_state.list_building_blocks):
+            if building_block in self.protonated_state and self.building_blocks[building_block]['charge'] == -1:
+                # throw a dice and look if you get 1
+                if 1 == random.randint(1, int(self.deprot_prot_fraction)):
+                    new_building_block = self.protonated_state[building_block]
+                    self.current_state.modify(self.building_blocks[building_block], position, self.building_blocks[new_building_block])
+                    self.current_state.set_status()
+                    self.current_state.list_building_blocks_to_count = deepcopy(self.current_state.list_building_blocks)
+
+
+    def solvation_boxsize(self):
+        """Solvation of the system."""
+
+        # TODO: use ran_solvation if water_molecules is None
+
+        # self.counterions = int(-1 * self.current_state.charge / 2) ### ions will replace this water molecules
+
+        input_ran_box = {}
+        input_ran_box['ran_box'] = self.gromos_bin_dir + "/ran_box"
+        input_ran_box['topo'] = " ".join([self.workdir + "/mol_" + str(m) + ".top" for m in range(len(self.molecules))])
+        input_ran_box['pos'] = " ".join([self.workdir + "/eq_mol_" + str(m) + ".cnf" for m in range(len(self.molecules))])
+        input_ran_box['nsm'] = " ".join(["1"] * len(self.molecules))
+        input_ran_box['boxsize'] = " ".join([str(b) for b in self.boxsize])
+        input_ran_box['seed'] = self.seed
+        input_ran_box['output'] = self.workdir + "/system_solute.cnf"
+
+        command = "{ran_box} @topo {topo} @pos {pos} @nsm {nsm} @boxsize {boxsize} @seed {seed} @pbc r> {output}".format(**input_ran_box)
+        self.run_command(command)
+
+        #if not self.debug:
+        #    for m in range(len(self.molecules)):
+        #        os.remove(self.workdir + "/eq_mol_" + str(m) + ".cnf")
+
+        input_sim_box = {}
+        input_sim_box['sim_box'] = self.gromos_bin_dir + "/sim_box"
+        input_sim_box['topo'] = self.workdir + "/system.top"
+        input_sim_box['pos'] = self.workdir + "/system_solute.cnf"
+        input_sim_box['solvent'] = self.vsomm_building_blocks_dir + "/coordinates/spc.cnf"
+        input_sim_box['boxsize'] = " ".join([str(b) for b in self.boxsize])
+        input_sim_box['output'] = self.workdir + "/system.cnf"
+
+        command = "{sim_box} @topo {topo} @pbc r @pos {pos} @solvent {solvent} @boxsize {boxsize} > {output}".format(**input_sim_box)
+        self.run_command(command)
+
+
+        with open(self.workdir + "/system.cnf") as file:
+            for line in file:
+                if line.startswith("Added"):
+                    self.water_molecules = int(line.split()[1]) - self.counterions
+                    break
+
+        # TODO: for proteins, check system charge using check_top
+
+
     def solvation(self):
         """Solvation of the system."""
+
+        # TODO: use ran_solvation if water_molecules is None
 
         # self.counterions = int(-1 * self.current_state.charge / 2) ### ions will replace this water molecules
 
@@ -741,19 +817,20 @@ class System():
                                           ".top" for m in range(len(self.molecules))] + [self.vsomm_building_blocks_dir + "/forcefield/spc.top"])
         input_ran_box['pos'] = " ".join([self.workdir + "/eq_mol_" + str(m) +
                                          ".cnf" for m in range(len(self.molecules))] + [self.vsomm_building_blocks_dir + "/forcefield/spc.dat"])
-        input_ran_box['nsm'] = " ".join(["1"] * len(self.molecules) +
-                                        [str(self.water_molecules + self.counterions)])
+
+        input_ran_box['nsm'] = " ".join(["1"] * len(self.molecules) + [str(self.water_molecules + self.counterions)])
+        ##input_ran_box['nsm'] = " ".join(["1"] * len(self.molecules) + [str(self.counterions)])
+
         input_ran_box['dens'] = self.initial_density
         input_ran_box['seed'] = self.seed
         input_ran_box['output'] = self.workdir + "/system.cnf"
 
-        command = "{ran_box} @topo {topo} @pos {pos} @nsm {nsm} @dens {dens} @seed {seed} @pbc r> {output}".format(
-            **input_ran_box)
+        command = "{ran_box} @topo {topo} @pos {pos} @nsm {nsm} @dens {dens} @seed {seed} @pbc r> {output}".format(**input_ran_box)
         self.run_command(command)
 
-        if not self.debug:
-            for m in range(len(self.molecules)):
-                os.remove(self.workdir + "/eq_mol_" + str(m) + ".cnf")
+        #if not self.debug:
+        #    for m in range(len(self.molecules)):
+        #        os.remove(self.workdir + "/eq_mol_" + str(m) + ".cnf")
 
     def ionize(self):
         """Ionization of the system"""
@@ -778,8 +855,13 @@ class System():
         input_ion['seed'] = self.seed
         input_ion['output'] = self.workdir + "/system_ions.cnf"
 
-        command = "{ion} @topo {topo} @pos {pos} @pbc r @positive {charge} {chargename} \
-                @potential 1.4 @mindist 0.25 > {output}".format(**input_ion)
+        if self.ionrandom:
+            command = "{ion} @topo {topo} @pos {pos} @pbc r @positive {charge} {chargename} \
+                       @random {seed} > {output}".format(**input_ion)
+        else:
+            command = "{ion} @topo {topo} @pos {pos} @pbc r @positive {charge} {chargename} \
+                       @potential 1.4 @mindist 0.25 > {output}".format(**input_ion)
+
         self.run_command(command)
 
         if not self.debug:
@@ -1034,7 +1116,8 @@ mass:           {mass:.3f}
             command = "export OMP_NUM_THREADS=4 && {md} @topo {topo} @conf {conf} @fin {fin} @input {input} @tre {tre}  > {output}".format(
                 **input_eq)
 
-            self.run_command(command)
+            if self.run_equilibration:
+                self.run_command(command)
 
             if not self.debug:
                 os.remove(input_eq['conf'])
@@ -1084,6 +1167,28 @@ mass:           {mass:.3f}
             command = "cp {path}/eq3_system.cnf {path}/eq3_system.pdb {path}/system_ions.top {path}/stats.txt {path}/md_system.imd {output_path}".format(path=self.workdir, output_path=output_path)
         #command = "cp {path}/system_ions.top {path}/system_ions.cnf {path}/stats.txt {output_path}".format(path=self.workdir, output_path=output_path)
             self.run_command(command)
+
+    def gen_GROMACS_input_files(self):
+
+        from vsomm_modeler import gromos2gromacs
+        gromos2gromacs.gen_GROMACS_topology(self.workdir, "system_ions.top", len(self.molecules), self.counterion, self.counterions, self.water_molecules)
+        gromos2gromacs.gen_GROMACS_mdp(self.workdir)
+        if self.run_equilibration:
+            gromos2gromacs.gen_GROMACS_coordinates(self.workdir + "/eq3_system.cnf")
+        else:
+            gromos2gromacs.gen_GROMACS_coordinates(self.workdir + "/min_system.cnf")
+
+
+
+    def retrieve_GROMACS_data(self, output_path=None):
+        """Retrieve data of the system."""
+
+        if output_path is None:
+            output_path = "."
+
+        command = "cp {path}/min_system.gro {path}/eq3_system.gro {path}/system_ions_gmx.top {path}/*.itp {path}/md_system_gmx.mdp {output_path}".format(path=self.workdir, output_path=output_path)
+        self.run_command(command)
+
 
     def run_command(self, command):
         """Function to run the GROMOS commands."""

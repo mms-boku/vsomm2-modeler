@@ -17,6 +17,7 @@ def main(args):
     #system.gen_system()
     system.gen_system_ga()
     #print(system.counterion, system.counterions, system.current_state.charge)
+    system.set_pH()
     system.set_counterions()
     #print(system.counterion, system.counterions, system.current_state.charge)
     system.gen_molecules()
@@ -33,9 +34,17 @@ def main(args):
     system.minimize()
     system.equilibrate()
 
-    # system
-    system.solvation()
     system.combine_topologies()
+
+    # system
+    if args['boxsize']:
+        print("[!!!!!!!] solvation_boxsize")
+        system.solvation_boxsize()
+    else:
+        print("[!!!!!!!] solvation")
+        system.solvation()
+
+    #system.combine_topologies()
     system.ionize()
     # md of the system
     system.minimize_system()
@@ -43,8 +52,14 @@ def main(args):
     system.production_system()
 
     system.statistics()
-    system.get_system_pdb()
+    #system.get_system_pdb()
     system.retrieve_data()
+
+    # GROMACS
+    if args['togromacs']:
+        system.gen_GROMACS_input_files()
+        system.retrieve_GROMACS_data()
+
 
 
 if __name__ == "__main__":
@@ -67,6 +82,29 @@ if __name__ == "__main__":
         def __repr__(self):
             return '{0}-{1}'.format(self.start, self.end)
 
+
+    class EnvDefault(argparse.Action):
+        """An argparse action class that auto-sets missing default values from env
+        vars. Defaults to requiring the argument."""
+
+        def __init__(self, envvar, required=True, default=None, **kwargs):
+            if not default and envvar:
+                if envvar in os.environ:
+                    default = os.environ[envvar]
+            if required and default:
+                required = False
+            super(EnvDefault, self).__init__(default=default, required=required,
+                                             **kwargs)
+        def __call__(self, parser, namespace, values, option_string=None):
+            setattr(namespace, self.dest, values)
+
+    # functional sugar for the above
+    def env_default(envvar):
+        def wrapper(**kwargs):
+            return EnvDefault(envvar, **kwargs)
+
+        return wrapper
+
     # General configuration
 
     parser.add_argument('--model', default="Model", help="Model name")
@@ -76,14 +114,16 @@ if __name__ == "__main__":
                         help="Total number of Building Blocks", required=True)
     parser.add_argument('--building-blocks-per-molecule', type=int, default=0,
                         help="Building Blocks per molecule", required=True)
-    parser.add_argument('--water-molecules', type=int, default=1500,
-                        help="Number of water molecules", required=True)
+    parser.add_argument('--water-molecules', type=int, default=None,
+                        help="Number of water molecules", required=False)
     parser.add_argument('--pH', type=float, default=7.0, choices=[Range(1, 14)], help="pH", required=False)
     parser.add_argument('--logK1', type=float, default=4.76, choices=[Range(1, 14)], help="logK1", required=False)
-    parser.add_argument('--counterion', choices=["Ca2+", "Na+"],
-                        default="Na+", help="Ion", required=False)
-    parser.add_argument('--initial-density', type=int, default=900,
-                        help="Initial density", required=False)
+    parser.add_argument('--counterion', choices=["Ca2+", "Na+"], default="Na+", help="Ion", required=False)
+    parser.add_argument('--ionrandom', default=False, action="store_true", help="Random position for ions")
+
+    water = parser.add_mutually_exclusive_group()
+    water.add_argument('--initial-density', type=int, default=900, help="Initial density", required=False)
+    water.add_argument('--boxsize', nargs=3, metavar=('x', 'y', 'z'), help="boxsize", type=float, required=False)
 
     # Elemental composition
     elemental = parser.add_argument_group('elemental composition')
@@ -129,16 +169,20 @@ if __name__ == "__main__":
     orgcomp_NMR.add_argument('--alkyl-c-fraction', type=float,
                              choices=[Range(0.0, 1.0)], help="Alkyl-C fraction", required=True)
 
+
     # Path configuration
     config = parser.add_argument_group('configuration')
     config.add_argument('--seed', type=int, default=random.randint(0, 999999), help="seed")
+    config.add_argument('--seed-gen-algorithm', type=int, help="seed Genetic Algorithm")
     config.add_argument('--multiprocessing-enabled', default=False, action="store_true", help="Enable multiprocessing")
     config.add_argument('--num-threads', default=8, type=int, help="Number of threads")
     config.add_argument('--vsomm-building-blocks-dir', help="VSOMM building blocks directory",
-                        default=os.environ.get("VSOMM_BUILDING_BLOCKS"))
-    config.add_argument('--gromos-bin-dir', help="GROMOS binaries", default=os.environ.get("GROMOS_BIN"))
+                        action=env_default("VSOMM_BUILDING_BLOCKS"), required=True)
+    config.add_argument('--gromos-bin-dir', help="GROMOS binaries", action=env_default("GROMOS_BIN"), required=True)
     config.add_argument('--workdir', default=tempfile.mkdtemp(), help="Working directory (temp files)")
     config.add_argument('--debug', default=False, action="store_true", help="Debug mode")
+    config.add_argument('--run-equilibration', default=False, action="store_true", help="Run equilibration")
+    config.add_argument('--togromacs', default=False, action="store_true", help="Generate GROMACS files")
     args = parser.parse_args()
 
     if not args.gromos_bin_dir or not args.vsomm_building_blocks_dir:

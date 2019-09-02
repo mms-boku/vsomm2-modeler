@@ -9,6 +9,6 @@ setup(
     license='GPLv3.0',
     author='Yerko Escalona',
     author_email='yerko.escalona@boku.ac.at',
-    description='VSOMM modeler',
+    description='Simulation and Modelling Art',
     include_package_data=True,
 )
