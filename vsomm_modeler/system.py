@@ -30,7 +30,9 @@ class System():
                  assignment="IHSS",
                  multiprocessing_enabled=False, num_threads=8,
                  vsomm_building_blocks_dir=os.environ.get("VSOMM_BUILDING_BLOCKS"),
-                 gromos_bin_dir=os.environ.get("GROMOS_BIN"),
+                 gromosxx_bin_dir=os.environ.get("GROMOSXX_BIN"),
+                 gromospp_bin_dir=os.environ.get("GROMOSPP_BIN"),
+                 gromacs_bin_dir=os.environ.get("GROMACS_BIN"),
                  workdir=tempfile.mkdtemp(), debug=False,
                  run_equilibration=False, togromacs=False,
                  **kwargs):
@@ -58,7 +60,9 @@ class System():
         self.num_threads = num_threads
         self.assignment = assignment
         self.vsomm_building_blocks_dir = vsomm_building_blocks_dir
-        self.gromos_bin_dir = gromos_bin_dir
+        self.gromosxx_bin_dir = gromosxx_bin_dir
+        self.gromospp_bin_dir = gromospp_bin_dir
+        self.gromacs_bin_dir = gromacs_bin_dir
         self.workdir = workdir
         self.debug = debug
         self.run_equilibration = run_equilibration
@@ -463,7 +467,7 @@ class System():
         for m, mol in enumerate(self.molecules):
 
             input_make_top = {}
-            input_make_top['make_top'] = self.gromos_bin_dir + "make_top"
+            input_make_top['make_top'] = self.gromospp_bin_dir + "make_top"
             input_make_top['mtb'] = self.vsomm_building_blocks_dir + "forcefield/54a7_vsomm.mtb"
             input_make_top['ifp'] = self.vsomm_building_blocks_dir + "forcefield/54a7.ifp"
             input_make_top['seq'] = " ".join(mol)
@@ -511,7 +515,7 @@ class System():
 
             # G96
             input_pdb2g96 = {}
-            input_pdb2g96['pdb2g96'] = self.gromos_bin_dir + "pdb2g96"
+            input_pdb2g96['pdb2g96'] = self.gromospp_bin_dir + "pdb2g96"
             input_pdb2g96['topo'] = self.workdir + "/mol_" + str(m) + ".top"
             input_pdb2g96['pdb'] = "%s/mol_%s.pdb" % (self.workdir, m)
             input_pdb2g96['lib'] = self.vsomm_building_blocks_dir + "gromos_lib/pdb2g96.lib"
@@ -547,7 +551,7 @@ class System():
 
             # GCA
             input_gca = {}
-            input_gca['gca'] = self.gromos_bin_dir + "gca"
+            input_gca['gca'] = self.gromospp_bin_dir + "gca"
             input_gca['topo'] = self.workdir + "/mol_" + str(m) + ".top"
             input_gca['prop'] = " ".join(list_gca)
             input_gca['traj'] = "%s/pdb2g96_mol_%s.cnf" % (self.workdir, m)
@@ -568,7 +572,7 @@ class System():
 
             # GCH
             input_gch = {}
-            input_gch['gch'] = self.gromos_bin_dir + "gch"
+            input_gch['gch'] = self.gromospp_bin_dir + "gch"
             input_gch['topo'] = self.workdir + "/mol_" + str(m) + ".top"
 
             #input_gch['cnf'] = "%s/pdb2g96_mol_%s.cnf" % (self.workdir, m)
@@ -618,13 +622,13 @@ class System():
 
                 input_min = {}
 
-                input_min['md'] = self.gromos_bin_dir + "/md"
+                input_min['md'] = self.gromosxx_bin_dir + "/md"
                 input_min['topo'] = self.workdir + "/mol_" + str(m) + ".top"
                 input_min['conf'] = self.workdir + "/" + prefix_in + "mol_" + str(m) + ".cnf"
                 input_min['fin'] = self.workdir + "/" + prefix_out + "mol_" + str(m) + ".cnf"
                 input_min['input'] = self.workdir + "/" + prefix_out + "mol_" + str(m) + ".imd"
                 input_min['output'] = self.workdir + "/" + prefix_out + "mol_" + str(m) + ".omd"
-                command = "{md} @topo {topo} @conf {conf} @fin {fin} @input {input} > {output}".format(**input_min)
+                command = "export OMP_NUM_THREADS=1 && {md} @topo {topo} @conf {conf} @fin {fin} @input {input} > {output}".format(**input_min)
 
                 # saving the trajectory and energy of the system
                 # input_min['trc'] = self.workdir + "/" + prefix_out+"mol_" + str(m) + ".trc"
@@ -676,13 +680,13 @@ class System():
 
             input_eq = {}
 
-            input_eq['md'] = self.gromos_bin_dir + "/md"
+            input_eq['md'] = self.gromosxx_bin_dir + "/md"
             input_eq['topo'] = self.workdir + "/mol_" + str(m) + ".top"
             input_eq['conf'] = self.workdir + "/min3_mol_" + str(m) + ".cnf"
             input_eq['fin'] = self.workdir + "/eq_mol_" + str(m) + ".cnf"
             input_eq['input'] = self.workdir + "/eq_mol_" + str(m) + ".imd"
             input_eq['output'] = self.workdir + "/eq_mol_" + str(m) + ".omd"
-            command = "{md} @topo {topo} @conf {conf} @fin {fin} " \
+            command = "export OMP_NUM_THREADS=1 && {md} @topo {topo} @conf {conf} @fin {fin} " \
                       "@input {input} > {output}".format(**input_eq)
 
             # saving the trajectory and energy of the system
@@ -713,7 +717,7 @@ class System():
         """Combine the topologies of the different molecules."""
 
         input_com_top = {}
-        input_com_top['com_top'] = self.gromos_bin_dir + "/com_top"
+        input_com_top['com_top'] = self.gromospp_bin_dir + "/com_top"
         input_com_top['topo'] = " ".join([self.workdir + "/mol_" + str(m) +
                                           ".top" for m in range(len(self.molecules))])
         input_com_top['output'] = self.workdir + "/system.top"
@@ -768,7 +772,7 @@ class System():
         # self.counterions = int(-1 * self.current_state.charge / 2) ### ions will replace this water molecules
 
         input_ran_box = {}
-        input_ran_box['ran_box'] = self.gromos_bin_dir + "/ran_box"
+        input_ran_box['ran_box'] = self.gromospp_bin_dir + "/ran_box"
         input_ran_box['topo'] = " ".join([self.workdir + "/mol_" + str(m) + ".top" for m in range(len(self.molecules))])
         input_ran_box['pos'] = " ".join([self.workdir + "/eq_mol_" + str(m) + ".cnf" for m in range(len(self.molecules))])
         input_ran_box['nsm'] = " ".join(["1"] * len(self.molecules))
@@ -784,7 +788,7 @@ class System():
         #        os.remove(self.workdir + "/eq_mol_" + str(m) + ".cnf")
 
         input_sim_box = {}
-        input_sim_box['sim_box'] = self.gromos_bin_dir + "/sim_box"
+        input_sim_box['sim_box'] = self.gromospp_bin_dir + "/sim_box"
         input_sim_box['topo'] = self.workdir + "/system.top"
         input_sim_box['pos'] = self.workdir + "/system_solute.cnf"
         input_sim_box['solvent'] = self.vsomm_building_blocks_dir + "/coordinates/spc.cnf"
@@ -812,7 +816,7 @@ class System():
         # self.counterions = int(-1 * self.current_state.charge / 2) ### ions will replace this water molecules
 
         input_ran_box = {}
-        input_ran_box['ran_box'] = self.gromos_bin_dir + "/ran_box"
+        input_ran_box['ran_box'] = self.gromospp_bin_dir + "/ran_box"
         input_ran_box['topo'] = " ".join([self.workdir + "/mol_" + str(m) +
                                           ".top" for m in range(len(self.molecules))] + [self.vsomm_building_blocks_dir + "/forcefield/spc.top"])
         input_ran_box['pos'] = " ".join([self.workdir + "/eq_mol_" + str(m) +
@@ -838,7 +842,7 @@ class System():
         #self.counterions = int(-1 * self.current_state.charge / 2)
 
         input_com_top = {}
-        input_com_top['com_top'] = self.gromos_bin_dir + "/com_top"
+        input_com_top['com_top'] = self.gromospp_bin_dir + "/com_top"
         input_com_top['topo'] = self.workdir + "/system.top" + " " + \
             str(self.counterions) + ":" + self.vsomm_building_blocks_dir + self.topo_counterion
         input_com_top['output'] = self.workdir + "/system_ions.top"
@@ -847,7 +851,7 @@ class System():
         self.run_command(command)
 
         input_ion = {}
-        input_ion['ion'] = self.gromos_bin_dir + "/ion"
+        input_ion['ion'] = self.gromospp_bin_dir + "/ion"
         input_ion['topo'] = self.workdir + "/system.top"
         input_ion['pos'] = self.workdir + "/system.cnf"
         input_ion['charge'] = self.counterions
@@ -872,7 +876,7 @@ class System():
         """Obtain PDB of the system."""
 
         input_frameout = {}
-        input_frameout['frameout'] = self.gromos_bin_dir + "/frameout"
+        input_frameout['frameout'] = self.gromospp_bin_dir + "/frameout"
         input_frameout['topo'] = self.workdir + "/system_ions.top"
         input_frameout['traj'] = self.workdir + "/eq3_system.cnf"
         # input_frameout['output'] = self.workdir + "/system_ions.pdb"
@@ -1045,7 +1049,7 @@ mass:           {mass:.3f}
                 self.current_state.atom_count), cationatom=cationatom, lastatom=lastatom))
 
         input_min = {}
-        input_min['md'] = self.gromos_bin_dir + "/md_omp"
+        input_min['md'] = self.gromosxx_bin_dir + "/md"
         input_min['topo'] = self.workdir + "/system_ions.top"
         input_min['conf'] = self.workdir + "/system_ions.cnf"
         input_min['fin'] = self.workdir + "/min_system.cnf"
@@ -1078,7 +1082,7 @@ mass:           {mass:.3f}
 
         #input_eq = {}
 
-        #input_eq['md'] = self.gromos_bin_dir + "/md_omp"
+        #input_eq['md'] = self.gromosxx_bin_dir + "/md"
         #input_eq['topo'] = self.workdir + "/system_ions.top"
         #input_eq['conf'] = self.workdir + "/min_system.cnf"
         #input_eq['fin'] = self.workdir + "/eq_system.cnf"
@@ -1104,7 +1108,7 @@ mass:           {mass:.3f}
 
             input_eq = {}
 
-            input_eq['md'] = self.gromos_bin_dir + "/md_omp"
+            input_eq['md'] = self.gromosxx_bin_dir + "/md"
             input_eq['topo'] = self.workdir + "/system_ions.top"
             input_eq['conf'] = self.workdir + "/" + prefix_in + "_system.cnf"
             input_eq['fin'] = self.workdir + "/" + prefix_out + "_system.cnf"
@@ -1140,7 +1144,7 @@ mass:           {mass:.3f}
 
         #input_md = {}
 
-        #input_md['md'] = self.gromos_bin_dir + "/md_omp"
+        #input_md['md'] = self.gromosxx_bin_dir + "/md"
         #input_md['topo'] = self.workdir + "/system_ions.top"
         #input_md['conf'] = self.workdir + "/eq3_system.cnf"
         #input_md['fin'] = self.workdir + "/md_system.cnf"

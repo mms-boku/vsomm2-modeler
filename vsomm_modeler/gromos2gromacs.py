@@ -44,6 +44,13 @@ def gen_itp(mol_name, top):
         for at_excl in at.e_l:
             if at1 < int(at_excl.id):
                 itp_lines += '{:>5s}{:>6s}\n'.format(at_id, at_excl.id)
+    for at_id in top.atoms:
+        at = top.atoms[at_id]
+        at1 = int(at_id)
+        # p_l: pairlist
+        for at_excl in at.p_l:
+            if at1 < int(at_excl.id):
+                itp_lines += '{:>5s}{:>6s}\n'.format(at_id, at_excl.id)
 
     itp_lines += '''
 [ pairs ]
@@ -178,4 +185,5 @@ def gen_GROMACS_coordinates(cnf):
     boxsize = " ".join(str(i) for i in smartcnf.box.abc)
     print(boxsize)
 
+    # TODO: use self.gromacs_bin_dir variable
     os.system("gmx editconf -f %s/%s.g96 -o %s/%s.gro -box %s" % (workdir, basename, workdir, basename, boxsize))

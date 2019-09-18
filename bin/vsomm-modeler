@@ -178,15 +178,20 @@ if __name__ == "__main__":
     config.add_argument('--num-threads', default=8, type=int, help="Number of threads")
     config.add_argument('--vsomm-building-blocks-dir', help="VSOMM building blocks directory",
                         action=env_default("VSOMM_BUILDING_BLOCKS"), required=True)
-    config.add_argument('--gromos-bin-dir', help="GROMOS binaries", action=env_default("GROMOS_BIN"), required=True)
+    config.add_argument('--gromosxx-bin-dir', help="GROMOSXX binaries", action=env_default("GROMOSXX_BIN"), required=True)
+    config.add_argument('--gromospp-bin-dir', help="GROMOSpp binaries", action=env_default("GROMOSPP_BIN"), required=True)
     config.add_argument('--workdir', default=tempfile.mkdtemp(), help="Working directory (temp files)")
     config.add_argument('--debug', default=False, action="store_true", help="Debug mode")
     config.add_argument('--run-equilibration', default=False, action="store_true", help="Run equilibration")
     config.add_argument('--togromacs', default=False, action="store_true", help="Generate GROMACS files")
+    config.add_argument('--gromacs-bin-dir', help="GROMOS binaries", action=env_default("GROMACS_BIN"))
     args = parser.parse_args()
 
-    if not args.gromos_bin_dir or not args.vsomm_building_blocks_dir:
+    if not args.gromosxx_bin_dir or not args.gromospp_bin_dir or not args.vsomm_building_blocks_dir:
         exit(parser.print_usage())
+
+    if args.togromacs and args.gromacs_bin_dir is None:
+        parser.error("--togromacs requires --gromacs-bin-dir")
 
     if (args.number_of_building_blocks % args.building_blocks_per_molecule != 0):
         parser.error("The number of building_blocks (number_of_building_blocks:%s) must be a multiply of the number of building_blocks per molecule (building_blocks_per_molecule:%s)" % (
