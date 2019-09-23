@@ -169,7 +169,7 @@ def gen_GROMACS_mdp(workdir):
         mdpfile.write(mdps.production_system)
 
 
-def gen_GROMACS_coordinates(cnf):
+def gen_GROMACS_coordinates(cnf, gromacs_bin_dir=""):
     import os
     from SMArt.md.gromos import parse_cnf
 
@@ -185,5 +185,5 @@ def gen_GROMACS_coordinates(cnf):
     boxsize = " ".join(str(i) for i in smartcnf.box.abc)
     print(boxsize)
 
-    # TODO: use self.gromacs_bin_dir variable
-    os.system("gmx editconf -f %s/%s.g96 -o %s/%s.gro -box %s" % (workdir, basename, workdir, basename, boxsize))
+    # TODO: use self.gromacs_bin_dir variable or avoid gmx program
+    os.system("%sgmx editconf -f %s/%s.g96 -o %s/%s.gro -box %s" % (gromacs_bin_dir, workdir, basename, workdir, basename, boxsize))

@@ -1178,9 +1178,9 @@ mass:           {mass:.3f}
         gromos2gromacs.gen_GROMACS_topology(self.workdir, "system_ions.top", len(self.molecules), self.counterion, self.counterions, self.water_molecules)
         gromos2gromacs.gen_GROMACS_mdp(self.workdir)
         if self.run_equilibration:
-            gromos2gromacs.gen_GROMACS_coordinates(self.workdir + "/eq3_system.cnf")
+            gromos2gromacs.gen_GROMACS_coordinates(self.workdir + "/eq3_system.cnf", self.gromacs_bin_dir)
         else:
-            gromos2gromacs.gen_GROMACS_coordinates(self.workdir + "/min_system.cnf")
+            gromos2gromacs.gen_GROMACS_coordinates(self.workdir + "/min_system.cnf", self.gromacs_bin_dir)
 
 
 
