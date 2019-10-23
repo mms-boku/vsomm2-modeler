@@ -30,6 +30,7 @@ class System():
                  assignment="IHSS",
                  multiprocessing_enabled=False, num_threads=8,
                  vsomm_building_blocks_dir=os.environ.get("VSOMM_BUILDING_BLOCKS"),
+                 forcefield="54a7",
                  gromosxx_bin_dir=os.environ.get("GROMOSXX_BIN"),
                  gromospp_bin_dir=os.environ.get("GROMOSPP_BIN"),
                  gromacs_bin_dir=os.environ.get("GROMACS_BIN"),
@@ -60,6 +61,7 @@ class System():
         self.num_threads = num_threads
         self.assignment = assignment
         self.vsomm_building_blocks_dir = vsomm_building_blocks_dir
+        self.forcefield = forcefield
         self.gromosxx_bin_dir = gromosxx_bin_dir
         self.gromospp_bin_dir = gromospp_bin_dir
         self.gromacs_bin_dir = gromacs_bin_dir
@@ -81,8 +83,8 @@ class System():
         self.building_blocks_start_end_groups = []
 
         # Get information from the json databases
-        self.building_blocks = json.load(open(self.vsomm_building_blocks_dir + "properties/Building_Blocks.json", 'r'), object_pairs_hook=OrderedDict)
-        self.start_end_groups = json.load(open(self.vsomm_building_blocks_dir + "properties/Start_End_Groups.json", 'r'), object_pairs_hook=OrderedDict)
+        self.building_blocks = json.load(open(self.vsomm_building_blocks_dir + self.forcefield + "/properties/Building_Blocks.json", 'r'), object_pairs_hook=OrderedDict)
+        self.start_end_groups = json.load(open(self.vsomm_building_blocks_dir + self.forcefield + "/properties/Start_End_Groups.json", 'r'), object_pairs_hook=OrderedDict)
 
         # Creating a subset of building blocks without protonated states
         # also a dictionary to see the relation between deprotonated / protonated states
@@ -95,7 +97,7 @@ class System():
                 self.subset_building_blocks[building_block] = properties
 
         # Get coordinates of the building blocks
-        self.HAs = get_mol_coordinates(self.vsomm_building_blocks_dir + "coordinates/HSs.pdb")
+        self.HAs = get_mol_coordinates(self.vsomm_building_blocks_dir + self.forcefield + "/coordinates/HSs.pdb")
 
     def set_input_state(self):
         """Set input state to compare with current state."""
@@ -468,8 +470,8 @@ class System():
 
             input_make_top = {}
             input_make_top['make_top'] = self.gromospp_bin_dir + "make_top"
-            input_make_top['mtb'] = self.vsomm_building_blocks_dir + "forcefield/54a7_vsomm.mtb"
-            input_make_top['ifp'] = self.vsomm_building_blocks_dir + "forcefield/54a7.ifp"
+            input_make_top['mtb'] = self.vsomm_building_blocks_dir + self.forcefield + "/forcefield/" + self.forcefield + "_vsomm.mtb"
+            input_make_top['ifp'] = self.vsomm_building_blocks_dir + self.forcefield + "/forcefield/" + self.forcefield + ".ifp"
             input_make_top['seq'] = " ".join(mol)
             input_make_top['output'] = self.workdir + \
                 "/mol_" + str(m) + ".top"
@@ -493,7 +495,8 @@ class System():
                     HA.resseqs[i] = idx + 1
 
                 # rotate
-                angle = np.deg2rad(20 * idx)
+                #angle = np.deg2rad(20 * idx)
+                angle = np.deg2rad(random.randint(0, 360))
                 rotmat = np.array([[1, 0, 0], [0, np.cos(angle), -np.sin(angle)], [0, np.sin(angle), np.cos(angle)]])
 
                 HA.coords = HA.coords - HA.coords[0]
@@ -518,7 +521,7 @@ class System():
             input_pdb2g96['pdb2g96'] = self.gromospp_bin_dir + "pdb2g96"
             input_pdb2g96['topo'] = self.workdir + "/mol_" + str(m) + ".top"
             input_pdb2g96['pdb'] = "%s/mol_%s.pdb" % (self.workdir, m)
-            input_pdb2g96['lib'] = self.vsomm_building_blocks_dir + "gromos_lib/pdb2g96.lib"
+            input_pdb2g96['lib'] = self.vsomm_building_blocks_dir + self.forcefield + "/gromos_lib/pdb2g96.lib"
             input_pdb2g96['output'] = "%s/pdb2g96_mol_%s.cnf" % (self.workdir, m)
 
             command = "{pdb2g96} @topo {topo} @pdb {pdb} @lib {lib} > {output}".format(**input_pdb2g96)
@@ -527,7 +530,7 @@ class System():
             if not self.debug:
                 os.remove(input_pdb2g96["pdb"])
 
-    # TODO: fix this for the case of 1 bb per molecule
+
     def mol_assembly(self):
         """Molecular assembly in accordance to the bond a angle information of building blocks."""
 
@@ -564,7 +567,6 @@ class System():
             if not self.debug:
                 os.remove(input_gca["traj"])
 
-    # TODO: fix this for the case of 1 bb per molecule
     def fix_hydrogens(self):
         """Add or fix the position of hydrogens in the molecules."""
 
@@ -576,7 +578,7 @@ class System():
             input_gch['topo'] = self.workdir + "/mol_" + str(m) + ".top"
 
             #input_gch['cnf'] = "%s/pdb2g96_mol_%s.cnf" % (self.workdir, m)
-            input_gch['cnf'] = "%s/gca_mol_%s.cnf" % (self.workdir, m)
+            input_gch['cnf'] = "%s/pdb2g96_mol_%s.cnf" % (self.workdir, m)
 
             input_gch['output'] = "%s/mol_%s.cnf" % (self.workdir, m)
 
@@ -791,7 +793,7 @@ class System():
         input_sim_box['sim_box'] = self.gromospp_bin_dir + "/sim_box"
         input_sim_box['topo'] = self.workdir + "/system.top"
         input_sim_box['pos'] = self.workdir + "/system_solute.cnf"
-        input_sim_box['solvent'] = self.vsomm_building_blocks_dir + "/coordinates/spc.cnf"
+        input_sim_box['solvent'] = self.vsomm_building_blocks_dir + self.forcefield + "/coordinates/spc.cnf"
         input_sim_box['boxsize'] = " ".join([str(b) for b in self.boxsize])
         input_sim_box['output'] = self.workdir + "/system.cnf"
 
@@ -818,9 +820,9 @@ class System():
         input_ran_box = {}
         input_ran_box['ran_box'] = self.gromospp_bin_dir + "/ran_box"
         input_ran_box['topo'] = " ".join([self.workdir + "/mol_" + str(m) +
-                                          ".top" for m in range(len(self.molecules))] + [self.vsomm_building_blocks_dir + "/forcefield/spc.top"])
+                                          ".top" for m in range(len(self.molecules))] + [self.vsomm_building_blocks_dir + self.forcefield + "/forcefield/spc.top"])
         input_ran_box['pos'] = " ".join([self.workdir + "/eq_mol_" + str(m) +
-                                         ".cnf" for m in range(len(self.molecules))] + [self.vsomm_building_blocks_dir + "/forcefield/spc.dat"])
+                                         ".cnf" for m in range(len(self.molecules))] + [self.vsomm_building_blocks_dir + self.forcefield + "/forcefield/spc.dat"])
 
         input_ran_box['nsm'] = " ".join(["1"] * len(self.molecules) + [str(self.water_molecules + self.counterions)])
         ##input_ran_box['nsm'] = " ".join(["1"] * len(self.molecules) + [str(self.counterions)])
@@ -844,7 +846,7 @@ class System():
         input_com_top = {}
         input_com_top['com_top'] = self.gromospp_bin_dir + "/com_top"
         input_com_top['topo'] = self.workdir + "/system.top" + " " + \
-            str(self.counterions) + ":" + self.vsomm_building_blocks_dir + self.topo_counterion
+            str(self.counterions) + ":" + self.vsomm_building_blocks_dir + self.forcefield + "/" + self.topo_counterion
         input_com_top['output'] = self.workdir + "/system_ions.top"
 
         command = "{com_top} @topo {topo} @param 1 @solv 1 > {output}".format(**input_com_top)

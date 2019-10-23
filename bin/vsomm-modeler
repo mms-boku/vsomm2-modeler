@@ -28,7 +28,7 @@ def main(args):
     print("[+] Gen molecules")
     system.gen_topology()
     system.gen_coordinates()
-    system.mol_assembly()
+    #system.mol_assembly()
     system.fix_hydrogens()
     # md for each molecule
     system.minimize()
@@ -178,6 +178,7 @@ if __name__ == "__main__":
     config.add_argument('--num-threads', default=8, type=int, help="Number of threads")
     config.add_argument('--vsomm-building-blocks-dir', help="VSOMM building blocks directory",
                         action=env_default("VSOMM_BUILDING_BLOCKS"), required=True)
+    config.add_argument('--forcefield', choices=["54a7", "54a8"], default="54a7", help="forcefield")
     config.add_argument('--gromosxx-bin-dir', help="GROMOSXX binaries", action=env_default("GROMOSXX_BIN"), required=True)
     config.add_argument('--gromospp-bin-dir', help="GROMOSpp binaries", action=env_default("GROMOSPP_BIN"), required=True)
     config.add_argument('--workdir', default=tempfile.mkdtemp(), help="Working directory (temp files)")
