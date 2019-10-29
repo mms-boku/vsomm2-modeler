@@ -3,7 +3,7 @@ from setuptools import setup
 setup(
     name='vsomm_modeler',
     version='2.0.0',
-    packages=['vsomm_modeler'],
+    packages=['vsomm_modeler', 'test'],
     scripts=['bin/vsomm-modeler'],
     url='http://somm.boku.ac.at/',
     license='GPLv3.0',
