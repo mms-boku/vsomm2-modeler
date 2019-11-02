@@ -2,7 +2,7 @@ import os
 import sys
 import subprocess
 import json
-import multiprocessing
+import billiard as multiprocessing
 import random
 import tempfile
 import numpy as np
