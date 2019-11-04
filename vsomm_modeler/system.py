@@ -207,8 +207,10 @@ class System():
         ga.terminationCriteria.set(GSimpleGA.RawScoreCriteria)
         ga.setGenerations(ngen)
         ga.setPopulationSize(500)
-        if self.multiprocessing_enabled:
-            ga.setMultiProcessing(True, max_processes=self.num_threads)
+
+        # TODO: make GA billiard compatible
+        #if self.multiprocessing_enabled:
+        #    ga.setMultiProcessing(True, max_processes=self.num_threads)
 
         ga.evolve(freq_stats=50)
 
