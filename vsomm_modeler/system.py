@@ -25,7 +25,7 @@ class System():
     def __init__(self, model=None, number_of_building_blocks=200,
                  building_blocks_per_molecule=5, water_molecules=None,
                  counterion="Na+", ionrandom=False,
-                 pH=7.0, logK1=4.76, initial_density=900, boxsize=None,
+                 pH=7.0, logK1=4.2, initial_density=900, boxsize=None,
                  seed=random.randint(0, 999999), seed_gen_algorithm=None,
                  assignment="IHSS",
                  multiprocessing_enabled=False, num_threads=8,
@@ -168,8 +168,7 @@ class System():
                     if frac is "carbon_fraction" or frac is "nitrogen_fraction":
                         # permit a 20% percentage error 
                         # (0.05*0.05)/(0.2*0.2) = 0.0625
-                        diff.append(0.0625 * ((np.abs(getattr(temp_state, frac) - getattr(self.input_state, frac)) /
-                                    getattr(self.input_state, frac))**2))
+                        diff.append(0.0625 * ((np.abs(getattr(temp_state, frac) - getattr(self.input_state, frac)) / getattr(self.input_state, frac))**2))
                     else:
                         diff.append((np.abs(getattr(temp_state, frac) - getattr(self.input_state, frac)) / getattr(self.input_state, frac))**2)
                 except:
@@ -530,7 +529,7 @@ class System():
             self.run_command(command)
 
             if not self.debug:
-                os.remove(input_pdb2g96["pdb"])
+                self.remove_files([input_pdb2g96["pdb"]])
 
 
     def mol_assembly(self):
@@ -567,7 +566,7 @@ class System():
             self.run_command(command)
 
             if not self.debug:
-                os.remove(input_gca["traj"])
+                self.remove_files([input_gca["traj"]])
 
     def fix_hydrogens(self):
         """Add or fix the position of hydrogens in the molecules."""
@@ -588,7 +587,7 @@ class System():
             self.run_command(command)
 
             if not self.debug:
-                os.remove(input_gch['cnf'])
+                self.remove_files([input_gch['cnf']])
 
     def minimize(self):
         """Minimize each molecule."""
@@ -654,8 +653,7 @@ class System():
 
 
             if not self.debug:
-                for c in to_clean:
-                    os.remove(c)
+                self.remove_files([c for c in to_clean])
                 to_clean = []
 
 
@@ -712,8 +710,9 @@ class System():
             pool.join()
 
         if not self.debug:
-            for c in to_clean:
-                os.remove(c)
+            self.remove_files([c for c in to_clean])
+            to_clean = []
+
 
 
 
@@ -729,9 +728,8 @@ class System():
         command = "{com_top} @topo {topo} @param 1 @solv 1 > {output}".format(**input_com_top)
         self.run_command(command)
 
-    #    if not self.debug:
-    #        for m in range(len(self.molecules)):
-    #            os.remove(self.workdir + "/mol_" + str(m) + ".top")
+        if not self.debug:
+            self.remove_files([self.workdir + "/mol_" + str(m) + ".top" for m in range(len(self.molecules))])
 
     def set_counterions(self):
         valence = {'Na+': 1, 'Ca2+': 2}
@@ -787,9 +785,8 @@ class System():
         command = "{ran_box} @topo {topo} @pos {pos} @nsm {nsm} @boxsize {boxsize} @seed {seed} @pbc r> {output}".format(**input_ran_box)
         self.run_command(command)
 
-        #if not self.debug:
-        #    for m in range(len(self.molecules)):
-        #        os.remove(self.workdir + "/eq_mol_" + str(m) + ".cnf")
+        if not self.debug:
+            self.remove_files([self.workdir + "/eq_mol_" + str(m) + ".cnf" for m in range(len(self.molecules))])
 
         input_sim_box = {}
         input_sim_box['sim_box'] = self.gromospp_bin_dir + "/sim_box"
@@ -836,9 +833,9 @@ class System():
         command = "{ran_box} @topo {topo} @pos {pos} @nsm {nsm} @dens {dens} @seed {seed} @pbc r> {output}".format(**input_ran_box)
         self.run_command(command)
 
-        #if not self.debug:
-        #    for m in range(len(self.molecules)):
-        #        os.remove(self.workdir + "/eq_mol_" + str(m) + ".cnf")
+        if not self.debug:
+            self.remove_files([self.workdir + "/eq_mol_" + str(m) + ".cnf" for m in range(len(self.molecules))])
+
 
     def ionize(self):
         """Ionization of the system"""
@@ -873,23 +870,22 @@ class System():
         self.run_command(command)
 
         if not self.debug:
-            os.remove(input_ion['topo'])
-            os.remove(input_ion['pos'])
+            self.remove_files([[input_ion['topo'], input_ion['pos']])
 
-    def get_system_pdb(self):
+    def get_system_pdb(cnf_filename, pdb_filename, self):
         """Obtain PDB of the system."""
 
         input_frameout = {}
         input_frameout['frameout'] = self.gromospp_bin_dir + "/frameout"
         input_frameout['topo'] = self.workdir + "/system_ions.top"
-        input_frameout['traj'] = self.workdir + "/eq3_system.cnf"
+        input_frameout['traj'] = self.workdir + cnf_filename
         # input_frameout['output'] = self.workdir + "/system_ions.pdb"
 
-        # FRAMEOUT DOESNT HAVE A OUTPUT FLAG :@
+        # fixme: FRAMEOUT DOESNT HAVE AN OUTPUT FLAG :@
         command = "cd {workdir} && {frameout} @topo {topo} @traj {traj} @pbc r cog @outformat pdb \
                 @include ALL @time 0 0.5".format(**input_frameout, workdir=self.workdir)
         self.run_command(command)
-        command = "mv {workdir}/FRAME_00001.pdb {workdir}/eq3_system.pdb".format(workdir=self.workdir)
+        command = "mv {workdir}/FRAME_00001.pdb {workdir}/{pdb_filename}".format(workdir=self.workdir, pdb_filename=pdb_filename)
         self.run_command(command)
 
     def statistics(self):
@@ -1066,11 +1062,7 @@ mass:           {mass:.3f}
         self.run_command(command)
 
         if not self.debug:
-            print("Removing: ",input_min['conf'],input_min['input'],input_min['output'],input_min['tre'])
-            os.remove(input_min['conf'])
-            os.remove(input_min['input'])
-            os.remove(input_min['output'])
-            os.remove(input_min['tre'])
+            self.remove_files([input_min['conf'],input_min['input'],input_min['output'],input_min['tre']])
 
     def equilibrate_system(self):
         """Equilibration of the system."""
@@ -1128,10 +1120,7 @@ mass:           {mass:.3f}
                 self.run_command(command)
 
             if not self.debug:
-                os.remove(input_eq['conf'])
-                os.remove(input_eq['input'])
-                os.remove(input_eq['output'])
-                os.remove(input_eq['tre'])
+                self.remove_files([input_eq['conf'], input_eq['input'], input_eq['output'], input_eq['tre']])
 
     def production_system(self):
         """Write production file."""
@@ -1161,20 +1150,33 @@ mass:           {mass:.3f}
         # self.run_command(command)
 
 
-    def retrieve_data(self, output_path=None):
+    def retrieve_data(self, files=[], output_path=None):
         """Retrieve data of the system."""
 
         if output_path is None:
             output_path = "."
 
-        if self.debug:
-            command = "cp {path}/min_system.cnf {path}/eq*_system.cnf {path}/system_ions.top {path}/min_system.tre {path}/eq*_system.tre {path}/stats.txt {path}/md_system.imd {output_path}".format(path=self.workdir, output_path=output_path)
-        #command = "cp {path}/system_ions.top {path}/system_ions.cnf {path}/stats.txt {output_path}".format(path=self.workdir, output_path=output_path)
-            self.run_command(command)
-        else:
-            command = "cp {path}/eq3_system.cnf {path}/eq3_system.pdb {path}/system_ions.top {path}/stats.txt {path}/md_system.imd {output_path}".format(path=self.workdir, output_path=output_path)
-        #command = "cp {path}/system_ions.top {path}/system_ions.cnf {path}/stats.txt {output_path}".format(path=self.workdir, output_path=output_path)
-            self.run_command(command)
+        if not files:
+            files = ["system_ions.top", "stats.txt", "min_system.cnf", "min_system.pdb"]
+
+            if self.run_equilibration:
+                files.extend(["eq_system.cnf", "eq2_system.cnf", "eq3_system.cnf", "eq3_system.pdb", "md_system.imd"])
+            else:
+                files.extend(["eq_system.imd", "eq2_system.imd", "eq3_system.imd", "md_system.imd"])
+
+            if self.togromacs:
+                files.extend(["min_system.gro", "eq3_system.gro", "system_ions_gmx.top", "*.itp", "md_system_gmx.mdp"])
+
+            if self.debug:
+                files.extend(["min_system.tre",  "eq_system.tre", "eq2_system.tre", "eq3_system.tre"])
+
+        command = "cp "
+        for f in files:
+            command += self.workdir + "/" + f + " "
+        command += output_path
+
+        self.run_command(command)
+
 
     def gen_GROMACS_input_files(self):
 
@@ -1186,16 +1188,13 @@ mass:           {mass:.3f}
         else:
             gromos2gromacs.gen_GROMACS_coordinates(self.workdir + "/min_system.cnf", self.gromacs_bin_dir)
 
+    def remove_files(self, files):
 
-
-    def retrieve_GROMACS_data(self, output_path=None):
-        """Retrieve data of the system."""
-
-        if output_path is None:
-            output_path = "."
-
-        command = "cp {path}/min_system.gro {path}/eq3_system.gro {path}/system_ions_gmx.top {path}/*.itp {path}/md_system_gmx.mdp {output_path}".format(path=self.workdir, output_path=output_path)
-        self.run_command(command)
+        for f in files:
+            try:
+                os.remove(f)
+            except:
+                print("Error while deleting file ", f)
 
 
     def run_command(self, command):

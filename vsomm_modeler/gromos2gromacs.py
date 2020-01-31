@@ -95,8 +95,6 @@ def gen_itp(mol_name, top):
 def gen_GROMACS_topology(workdir, topo, molecules, counterion=None, counterions=0, water_molecules=0):
 
     import SMArt.md.gromos as gr
-    #from gromos2gromacs import gen_itp
-    #from gromos2gromacs import at_sort
 
     topo_full = gr.parse_top(workdir + "/" + topo)
 

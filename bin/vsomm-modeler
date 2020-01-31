@@ -11,66 +11,58 @@ import numpy as np
 
 def main(args):
 
-    # initialization
-    print("[+] Gen system")
+    print("[+] Generating model")
     system = System(**args)
-    #system.gen_system()
+    #system.gen_system() # simple score function
     system.gen_system_ga()
-    #print(system.counterion, system.counterions, system.current_state.charge)
     system.set_pH()
     system.set_counterions()
-    #print(system.counterion, system.counterions, system.current_state.charge)
     system.gen_molecules()
-    #print(system.counterion, system.counterions, system.current_state.charge)
-    #system.statistics()
 
-    # molecules
-    print("[+] Gen molecules")
+    print("[+] Generating molecules")
     system.gen_topology()
     system.gen_coordinates()
-    #system.mol_assembly()
+    #system.mol_assembly() # deprecated function
     system.fix_hydrogens()
-    # md for each molecule
     system.minimize()
     system.equilibrate()
 
+    print("[+] Generating system")
     system.combine_topologies()
 
-    # system
     if args['boxsize']:
-        print("[!!!!!!!] solvation_boxsize")
         system.solvation_boxsize()
     else:
-        print("[!!!!!!!] solvation")
         system.solvation()
 
-    #system.combine_topologies()
     system.ionize()
-    # md of the system
     system.minimize_system()
     system.equilibrate_system()
     system.production_system()
 
+    print("[+] Creating statistics and retrieving data")
     system.statistics()
-    #system.get_system_pdb()
-    system.retrieve_data()
 
-    # GROMACS
+    system.get_system_pdb("min_system.cnf", "min_system.pdb")
+
+    if args['run_equilibration']:
+        system.get_system_pdb("eq3_system.cnf", "eq3_system.pdb")
+
     if args['togromacs']:
         system.gen_GROMACS_input_files()
-        system.retrieve_GROMACS_data()
+
+    system.retrieve_data()
 
 
 
 if __name__ == "__main__":
-    #parser = argparse.ArgumentParser()
 
     parser = argparse.ArgumentParser(
         prog='modeler.py',
         formatter_class=lambda prog: argparse.HelpFormatter(prog, max_help_position=60))
 
     class Range(object):
-        "To require an argument to be a float between 0.0-1.0 using argparse"
+        """Require a float argument between 0.0-1.0 using argparse"""
 
         def __init__(self, start, end):
             self.start = start
