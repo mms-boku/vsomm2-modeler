@@ -790,7 +790,7 @@ class System():
         input_sim_box['boxsize'] = " ".join([str(b) for b in self.boxsize])
         input_sim_box['output'] = self.workdir + "/system.cnf"
 
-        command = "{sim_box} @topo {topo} @pbc r @pos {pos} @solvent {solvent} @boxsize {boxsize} > {output}".format(**input_sim_box)
+        command = "{sim_box} @topo {topo} @pbc r @pos {pos} @solvent {solvent} @boxsize {boxsize} @thresh 0.158 > {output}".format(**input_sim_box)
         self._run_command(command)
 
 
@@ -904,9 +904,11 @@ class System():
             #                                     frac_deprot_input_state) /
             #                                     frac_deprot_input_state)
 
-            dict_diff["diff_" + frac] = (np.abs(dict_current_state[frac] -
-                                         dict_input_state[frac]) /
-                                         dict_input_state[frac])
+            try:
+                dict_diff["diff_" + frac] = (abs(dict_current_state[frac] - dict_input_state[frac]) / dict_input_state[frac])
+            except ZeroDivisionError as e:
+                dict_diff["diff_" + frac] = 0
+
 
         # Merging all the variables in one dictionary
         dict_input_state = dict(("input_" + key, value) for (key, value) in dict_input_state.items())
@@ -1159,7 +1161,10 @@ mass:           {mass:.3f}
                 files.extend(["eq_system.imd", "eq2_system.imd", "eq3_system.imd", "md_system.imd"])
 
             if self.togromacs:
-                files.extend(["min_system.gro", "eq3_system.gro", "system_ions_gmx.top", "*.itp", "md_system_gmx.mdp"])
+                if self.run_equilibration:
+                    files.extend(["eq3_system.gro", "system_ions_gmx.top", "*.itp", "md_system_gmx.mdp", "index.ndx"])
+                else:
+                    files.extend(["min_system.gro", "system_ions_gmx.top", "*.itp", "md_system_gmx.mdp", "index.ndx"])
 
             if not self.debug:
                 files.extend(["min_system.tre",  "eq_system.tre", "eq2_system.tre", "eq3_system.tre"])
@@ -1176,6 +1181,13 @@ mass:           {mass:.3f}
         from vsomm_modeler import gromos2gromacs
         gromos2gromacs.gen_GROMACS_topology(self.workdir, "system_ions.top", len(self.molecules), self.counterion, self.counterions, self.water_molecules)
         gromos2gromacs.gen_GROMACS_mdp(self.workdir)
+
+        humicatom = int(self.current_state.atom_count)
+        cation = self.counterion.capitalize()
+        cationatom = int(self.current_state.atom_count + self.counterions)
+        lastatom = int(self.current_state.atom_count + self.counterions + 3 * self.water_molecules)
+        gromos2gromacs.gen_GROMACS_index(self.workdir, humicatom, cation, cationatom, lastatom)
+
         if self.run_equilibration:
             gromos2gromacs.gen_GROMACS_coordinates(self.workdir + "/eq3_system.cnf", self.gromacs_bin_dir)
         else:
