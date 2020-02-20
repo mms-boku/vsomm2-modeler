@@ -166,6 +166,26 @@ def gen_GROMACS_mdp(workdir):
     with open(workdir + "/" + "/md_system_gmx.mdp", "w") as mdpfile:
         mdpfile.write(mdps.production_system)
 
+def gen_GROMACS_index(workdir, humicatom, cation, cationatom, lastatom):
+
+    with open(workdir + "/" + "/index.ndx", "w") as indexfile:
+        indexfile.write("[ HS ]\n")
+        for i in range(1, humicatom+1):
+            if i % 15 == 0: indexfile.write("\n")
+            indexfile.write(str(i) + " ")
+        indexfile.write("\n[ "  + cation  + " ]\n")
+        for i in range(humicatom + 1, cationatom + 1):
+            if i % 15 == 0: indexfile.write("\n")
+            indexfile.write(str(i) + " ")
+        indexfile.write("\n[ SOLV ]\n")
+        for i in range(cationatom + 1, lastatom + 1):
+            if i % 15 == 0: indexfile.write("\n")
+            indexfile.write(str(i) + " ")
+        indexfile.write("\n[ solvent ]\n")
+        for i in range(humicatom + 1, lastatom + 1):
+            if i % 15 == 0: indexfile.write("\n")
+            indexfile.write(str(i) + " ")
+        indexfile.write("\n")
 
 def gen_GROMACS_coordinates(cnf, gromacs_bin_dir=""):
     import os
@@ -177,11 +197,14 @@ def gen_GROMACS_coordinates(cnf, gromacs_bin_dir=""):
     if not workdir:
         workdir = "."
 
-    os.system("cp %s/%s %s/%s.g96" % (workdir, filename, workdir, basename))
+    #os.system("cp %s/%s %s/%s.g96" % (workdir, filename, workdir, basename))
+    # cnf2g96
+    os.system("cat %s/%s | sed '/TIMESTEP/,/END/d' | sed 's/GENBOX/BOX/g' | tac | sed '2d;3d;4d;6d' | tac > %s/%s.g96" % (workdir, filename, workdir, basename))
 
-    smartcnf = parse_cnf(cnf)
-    boxsize = " ".join(str(i) for i in smartcnf.box.abc)
-    print(boxsize)
+    #smartcnf = parse_cnf(cnf)
+    #boxsize = " ".join(str(i) for i in smartcnf.box.abc)
+    #print(boxsize)
 
-    # TODO: use self.gromacs_bin_dir variable or avoid gmx program
-    os.system("%sgmx editconf -f %s/%s.g96 -o %s/%s.gro -box %s" % (gromacs_bin_dir, workdir, basename, workdir, basename, boxsize))
+    # TODO: try to avoid gmx program
+    # g962gro
+    os.system("%sgmx editconf -f %s/%s.g96 -o %s/%s.gro" % (gromacs_bin_dir, workdir, basename, workdir, basename))
