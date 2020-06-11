@@ -1,6 +1,9 @@
 from collections import Counter, OrderedDict
 import numpy as np
 
+__author__ = "Yerko Escalona"
+__version__ = "1.0"
+
 class PDB():
     """
     Simple PDB class
@@ -36,6 +39,7 @@ class PDB():
     """
 
     def __init__(self):
+        self.__version__ = "1.0"
         # self.atoms = 0
         self.serials = []
         self.names = []

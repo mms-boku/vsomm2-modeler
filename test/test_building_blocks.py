@@ -14,7 +14,7 @@ def main():
 
 
     building_blocks = list(system.building_blocks.keys())
-    building_blocks = [bb for bb in building_blocks if bb.startswith("HS27")]
+    #building_blocks = [bb for bb in building_blocks if bb.startswith("HS16") or bb.startswith("HS12")  or bb.startswith("HS17")  ]
 
 
     print(building_blocks)
@@ -23,7 +23,7 @@ def main():
     l = []
     for i in building_blocks:
         l.append(system.building_blocks[i]['start_group'])
-        x = [i] * 10
+        x = [i] * 2
         l.extend(x)
         l.append(system.building_blocks[i]['end_group'])
         molecules.append(l)
@@ -33,7 +33,7 @@ def main():
     for i in itertools.combinations(building_blocks, 2):
         #print(i)
         l.append(system.building_blocks[i[0]]['start_group'])
-        x = list(i) * 10
+        x = list(i) * 2
         l.extend(x)
         l.append(system.building_blocks[i[1]]['end_group'])
         #print(l)
@@ -48,12 +48,12 @@ def main():
     system.molecules = molecules
 
     system.gen_topology()
-    system.gen_coordinates()
-    system.mol_assembly()
-    system.fix_hydrogens()
-    system.minimize()
-    system.equilibrate()
-    #system.statistics_status()
+    ##system.gen_coordinates()
+    ##system.mol_assembly()
+    ##system.fix_hydrogens()
+    ##system.minimize()
+    ##system.equilibrate()
+    ###system.statistics_status()
 
 
 if __name__ == "__main__":

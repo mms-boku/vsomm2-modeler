@@ -33,7 +33,6 @@ class System():
                  forcefield="54a7",
                  gromosxx_bin_dir=os.environ.get("GROMOSXX_BIN"),
                  gromospp_bin_dir=os.environ.get("GROMOSPP_BIN"),
-                 gromacs_bin_dir=os.environ.get("GROMACS_BIN"),
                  workdir=tempfile.mkdtemp(), debug=False,
                  run_equilibration=False, togromacs=False,
                  **kwargs):
@@ -64,7 +63,6 @@ class System():
         self.forcefield = forcefield
         self.gromosxx_bin_dir = gromosxx_bin_dir
         self.gromospp_bin_dir = gromospp_bin_dir
-        self.gromacs_bin_dir = gromacs_bin_dir
         self.workdir = workdir
         self.debug = debug
         self.run_equilibration = run_equilibration
@@ -125,7 +123,7 @@ class System():
 
         mol = self.states[self.assignment]()
         for i, c in enumerate(chromosome):
-            # TODO: es necesario que esta ordenado
+            # TODO: es necesario que este ordenado
             building_block = list(self.subset_building_blocks)[c]
 
             if i % self.building_blocks_per_molecule == 0:
@@ -211,8 +209,8 @@ class System():
         #if self.multiprocessing_enabled:
         #    ga.setMultiProcessing(True, max_processes=self.num_threads)
 
-        ga.evolve(freq_stats=50)
-
+        #ga.evolve(freq_stats=50)
+        ga.evolve()
         #    if ga.getCurrentGeneration() < ngen:
         #        condition = False
         #    else:
@@ -417,7 +415,7 @@ class System():
         return diff
 
     def gen_system(self):
-        """"Selection of the building blocks of the system using a simple algorithm."""
+        """Selection of the building blocks of the system using a simple algorithm."""
 
         new_building_block = {}
         for n in range(self.number_of_building_blocks):
@@ -1038,9 +1036,13 @@ mass:           {mass:.3f}
         lastatom = int(self.current_state.atom_count + self.counterions +
                        3 * self.water_molecules)  # - self.counterions))
 
-        with open(self.workdir + "/min_system.imd", "w") as imdfile:
-            imdfile.write(imds.minimize_system.format(seed=self.seed, mol=mol, watermol=watermol, bbsatom=int(
-                self.current_state.atom_count), cationatom=cationatom, lastatom=lastatom))
+        with open(self.workdir + "/min_system.imd", "w") as imd_file:
+            imd_file.write(imds.minimize_system.format(seed=self.seed,
+                                                       mol=mol,
+                                                       watermol=watermol,
+                                                       bbsatom=int(self.current_state.atom_count),
+                                                       cationatom=cationatom,
+                                                       lastatom=lastatom))
 
         input_min = {}
         input_min['md'] = self.gromosxx_bin_dir + "/md"
@@ -1176,22 +1178,22 @@ mass:           {mass:.3f}
 
         self._run_command(command)
 
-    def gen_GROMACS_input_files(self):
+    def generate_gromacs_input_files(self):
 
         from vsomm_modeler import gromos2gromacs
-        gromos2gromacs.gen_GROMACS_topology(self.workdir, "system_ions.top", len(self.molecules), self.counterion, self.counterions, self.water_molecules)
-        gromos2gromacs.gen_GROMACS_mdp(self.workdir)
+        gromos2gromacs.generate_gromacs_topology(self.workdir, "system_ions.top", len(self.molecules), self.counterion, self.counterions, self.water_molecules)
+        gromos2gromacs.generate_gromacs_mdp(self.workdir)
 
         humicatom = int(self.current_state.atom_count)
         cation = self.counterion.capitalize()
         cationatom = int(self.current_state.atom_count + self.counterions)
         lastatom = int(self.current_state.atom_count + self.counterions + 3 * self.water_molecules)
-        gromos2gromacs.gen_GROMACS_index(self.workdir, humicatom, cation, cationatom, lastatom)
+        gromos2gromacs.generate_gromacs_index(self.workdir, humicatom, cation, cationatom, lastatom)
 
         if self.run_equilibration:
-            gromos2gromacs.gen_GROMACS_coordinates(self.workdir + "/eq3_system.cnf", self.gromacs_bin_dir)
+            gromos2gromacs.generate_gro_file(self.workdir + "/eq3_system.cnf")
         else:
-            gromos2gromacs.gen_GROMACS_coordinates(self.workdir + "/min_system.cnf", self.gromacs_bin_dir)
+            gromos2gromacs.generate_gro_file(self.workdir + "/min_system.cnf")
 
     def _remove_files(self, files):
 

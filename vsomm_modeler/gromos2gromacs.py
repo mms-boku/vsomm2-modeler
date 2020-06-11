@@ -1,102 +1,12 @@
-
-def at_sort(ats):
-    al = []
-    for a in ats:
-        al.append(int(a))
-    sal = []
-    for a in sorted(al):
-        sal.append(str(a))
-    return sal
+import os
+from vsomm_modeler.cnf import CNF
+from vsomm_modeler.top import TOP
 
 
-def gen_itp(mol_name, top):
-    itp_lines = '''[ moleculetype ]
-; Name            nrexcl
-''' + mol_name + '''     0
+def generate_gromacs_topology(workdir, topology, molecules, counterion=None, counterions=0, water_molecules=0):
 
-[ atoms ]
-;   nr       type  resnr residue  atom   cgnr     charge       mass  typeB    chargeB      massB
-'''
-    cg_num = 1
-    for at_id in top.atoms:
-        at = top.atoms[at_id]
-        itp_lines += '{:>6s}{:>11s}{:>7s}{:>7s}{:>7s}{:7d}'.format(
-            at.id, at.a_type.name, at.res.id, at.res.name, at.name, cg_num)
-        cg_num += at.mk_cg
-        itp_lines += '{:>11s}{:>11s}\n'.format(str(at.p_ch), str(at.m))
-
-    itp_lines += '''
-[ bonds ]
-;  ai    aj funct            c0            c1            c2            c3
-'''
-
-    for b in top.bonds:
-        itp_lines += '{:>5s}{:>6s}{:>6s}    {:}\n'.format(
-            b.atoms[0].id, b.atoms[1].id, '2', 'gb_' + b.p.id)
-
-    itp_lines += '''
-[ exclusions ]
-;  ai    aj
-'''
-    for at_id in top.atoms:
-        at = top.atoms[at_id]
-        at1 = int(at_id)
-        for at_excl in at.e_l:
-            if at1 < int(at_excl.id):
-                itp_lines += '{:>5s}{:>6s}\n'.format(at_id, at_excl.id)
-    for at_id in top.atoms:
-        at = top.atoms[at_id]
-        at1 = int(at_id)
-        # p_l: pairlist
-        for at_excl in at.p_l:
-            if at1 < int(at_excl.id):
-                itp_lines += '{:>5s}{:>6s}\n'.format(at_id, at_excl.id)
-
-    itp_lines += '''
-[ pairs ]
-;  ai    aj funct
-'''
-    for at_id in top.atoms:
-        at = top.atoms[at_id]
-        at1 = int(at_id)
-        for at_excl in at.p_l:
-            if at1 < int(at_excl.id):
-                itp_lines += '{:>5s}{:>6s}     1\n'.format(at_id, at_excl.id)
-
-    itp_lines += '''
-[ angles ]
-;  ai    aj    ak funct            c0            c1            c2            c3
-'''
-    for b in top.angles:
-        itp_lines += '{:>5s}{:>6s}{:>6s}{:>6s}    {:}\n'.format(
-            b.atoms[0].id, b.atoms[1].id, b.atoms[2].id, '2', 'ga_' + b.p.id)
-
-    itp_lines += '''
-[ dihedrals ]
-;  ai    aj    ak    al funct            c0            c1            c2            c3            c4            c5
-'''
-    for b in top.dihedrals:
-        itp_lines += '{:>5s}{:>6s}{:>6s}{:>6s}{:>6s}    {:}\n'.format(
-            b.atoms[0].id, b.atoms[1].id, b.atoms[2].id, b.atoms[3].id, '1', 'gd_' + b.p.id)
-
-    itp_lines += '''
-[ dihedrals ]
-;  ai    aj    ak    al funct            c0            c1            c2            c3            c4            c5
-'''
-    for b in top.impropers:
-        itp_lines += '{:>5s}{:>6s}{:>6s}{:>6s}{:>6s}    {:}\n'.format(
-            b.atoms[0].id, b.atoms[1].id, b.atoms[2].id, b.atoms[3].id, '2', 'gi_' + b.p.id)
-
-    itp_lines += '\n'
-
-    return itp_lines
-
-
-def gen_GROMACS_topology(workdir, topo, molecules, counterion=None, counterions=0, water_molecules=0):
-
-    import SMArt.md.gromos as gr
-
-    topo_full = gr.parse_top(workdir + "/" + topo)
+    topo = TOP()
+    topo.processFile(workdir + "/" + topology)
 
     itp_lines = '''
 ; Include forcefield parameters
@@ -108,18 +18,14 @@ def gen_GROMACS_topology(workdir, topo, molecules, counterion=None, counterions=
 ; Include HS topologies
 '''
 
-    mols = topo_full.get_molecules()
+    subtopos = [t for t in topo.generate_subtopologies()]
 
     for m in range(molecules):
         mol_name = "HS_" + str(m+1)
 
-        sub_topo = topo_full.reduce_top(at_sort(mols[m]))
-        sub_topo.renumber()
-
         sub_itp_filename = mol_name + ".itp"
-        sub_itp_output = open(workdir + "/" + sub_itp_filename, "w")
-        sub_itp_output.write(gen_itp(mol_name, sub_topo))
-        sub_itp_output.close()
+        with open(workdir + "/" + sub_itp_filename, "w") as subitp_file:
+            subitp_file.write(subtopos[m].generate_itp(mol_name))
 
         itp_lines += '#include "' + sub_itp_filename + '"\n'
 
@@ -127,14 +33,9 @@ def gen_GROMACS_topology(workdir, topo, molecules, counterion=None, counterions=
         itp_lines += "\n; Include ion topology\n"
         itp_lines += "#include \"" + counterion + ".itp\"\n"
 
-        # search for the topology of the next "molecule" that is a cation
-        sub_topo = topo_full.reduce_top(at_sort(mols[molecules+1]))
-        sub_topo.renumber()
-
         sub_itp_filename = counterion + ".itp"
-        sub_itp_output = open(workdir + "/" + sub_itp_filename, "w")
-        sub_itp_output.write(gen_itp(counterion, sub_topo))
-        sub_itp_output.close()
+        with open(workdir + "/" + sub_itp_filename, "w") as subitp_file:
+            subitp_file.write(subtopos[m+1].generate_itp(counterion))
 
     itp_lines += '''
 [ system ]
@@ -159,52 +60,43 @@ system_ions
     itp_output.close()
 
 
-def gen_GROMACS_mdp(workdir):
+def generate_gromacs_mdp(workdir):
 
     from . import mdps
 
     with open(workdir + "/" + "/md_system_gmx.mdp", "w") as mdpfile:
         mdpfile.write(mdps.production_system)
 
-def gen_GROMACS_index(workdir, humicatom, cation, cationatom, lastatom):
 
-    with open(workdir + "/" + "/index.ndx", "w") as indexfile:
-        indexfile.write("[ HS ]\n")
+def generate_gromacs_index(workdir, humicatom, cation, cationatom, lastatom):
+
+    with open(workdir + "/" + "/index.ndx", "w") as index_file:
+        index_file.write("[ HS ]\n")
         for i in range(1, humicatom+1):
-            if i % 15 == 0: indexfile.write("\n")
-            indexfile.write(str(i) + " ")
-        indexfile.write("\n[ "  + cation  + " ]\n")
+            if i % 15 == 0: index_file.write("\n")
+            index_file.write(str(i) + " ")
+        index_file.write("\n[ "  + cation  + " ]\n")
         for i in range(humicatom + 1, cationatom + 1):
-            if i % 15 == 0: indexfile.write("\n")
-            indexfile.write(str(i) + " ")
-        indexfile.write("\n[ SOLV ]\n")
+            if i % 15 == 0: index_file.write("\n")
+            index_file.write(str(i) + " ")
+        index_file.write("\n[ SOLV ]\n")
         for i in range(cationatom + 1, lastatom + 1):
-            if i % 15 == 0: indexfile.write("\n")
-            indexfile.write(str(i) + " ")
-        indexfile.write("\n[ solvent ]\n")
+            if i % 15 == 0: index_file.write("\n")
+            index_file.write(str(i) + " ")
+        index_file.write("\n[ solvent ]\n")
         for i in range(humicatom + 1, lastatom + 1):
-            if i % 15 == 0: indexfile.write("\n")
-            indexfile.write(str(i) + " ")
-        indexfile.write("\n")
+            if i % 15 == 0: index_file.write("\n")
+            index_file.write(str(i) + " ")
+        index_file.write("\n")
 
-def gen_GROMACS_coordinates(cnf, gromacs_bin_dir=""):
-    import os
-    from SMArt.md.gromos import parse_cnf
 
-    workdir, filename = os.path.split(cnf)
+def generate_gro_file(cnf_filename):
+
+    workdir, filename = os.path.split(cnf_filename)
     basename = os.path.splitext(filename)[0]
 
     if not workdir:
         workdir = "."
 
-    #os.system("cp %s/%s %s/%s.g96" % (workdir, filename, workdir, basename))
-    # cnf2g96
-    os.system("cat %s/%s | sed '/TIMESTEP/,/END/d' | sed 's/GENBOX/BOX/g' | tac | sed '2d;3d;4d;6d' | tac > %s/%s.g96" % (workdir, filename, workdir, basename))
-
-    #smartcnf = parse_cnf(cnf)
-    #boxsize = " ".join(str(i) for i in smartcnf.box.abc)
-    #print(boxsize)
-
-    # TODO: try to avoid gmx program
-    # g962gro
-    os.system("%sgmx editconf -f %s/%s.g96 -o %s/%s.gro" % (gromacs_bin_dir, workdir, basename, workdir, basename))
+    cnf = CNF(workdir + "/" + filename)
+    cnf.output_gro(workdir + "/" + basename + ".gro")

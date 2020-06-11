@@ -9,6 +9,44 @@ import random
 import numpy as np
 
 
+class Range(object):
+    """Require a float argument between 0.0-1.0 using argparse"""
+
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
+
+    def __eq__(self, other):
+        return self.start <= other <= self.end
+
+    def __repr__(self):
+        return '{0}-{1}'.format(self.start, self.end)
+
+
+class EnvDefault(argparse.Action):
+    """An argparse action class that auto-sets missing default values from env
+    vars. Defaults to requiring the argument."""
+
+    def __init__(self, envvar, required=True, default=None, **kwargs):
+        if not default and envvar:
+            if envvar in os.environ:
+                default = os.environ[envvar]
+        if required and default:
+            required = False
+        super(EnvDefault, self).__init__(default=default, required=required,
+                                         **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, values)
+
+
+# functional sugar for the above
+def env_default(envvar):
+    def wrapper(**kwargs):
+        return EnvDefault(envvar, **kwargs)
+    return wrapper
+
+
 def main(args):
 
     print("[+] Generating model")
@@ -49,7 +87,7 @@ def main(args):
         system.get_system_pdb("eq3_system.cnf", "eq3_system.pdb")
 
     if args['togromacs']:
-        system.gen_GROMACS_input_files()
+        system.generate_gromacs_input_files()
 
     system.retrieve_data()
 
@@ -61,44 +99,7 @@ if __name__ == "__main__":
         prog='modeler.py',
         formatter_class=lambda prog: argparse.HelpFormatter(prog, max_help_position=60))
 
-    class Range(object):
-        """Require a float argument between 0.0-1.0 using argparse"""
-
-        def __init__(self, start, end):
-            self.start = start
-            self.end = end
-
-        def __eq__(self, other):
-            return self.start <= other <= self.end
-
-        def __repr__(self):
-            return '{0}-{1}'.format(self.start, self.end)
-
-
-    class EnvDefault(argparse.Action):
-        """An argparse action class that auto-sets missing default values from env
-        vars. Defaults to requiring the argument."""
-
-        def __init__(self, envvar, required=True, default=None, **kwargs):
-            if not default and envvar:
-                if envvar in os.environ:
-                    default = os.environ[envvar]
-            if required and default:
-                required = False
-            super(EnvDefault, self).__init__(default=default, required=required,
-                                             **kwargs)
-        def __call__(self, parser, namespace, values, option_string=None):
-            setattr(namespace, self.dest, values)
-
-    # functional sugar for the above
-    def env_default(envvar):
-        def wrapper(**kwargs):
-            return EnvDefault(envvar, **kwargs)
-
-        return wrapper
-
     # General configuration
-
     parser.add_argument('--model', default="Model", help="Model name")
     #parser.add_argument('--type', default="advanced", choices=["basic", "advanced", "random"], help="Type of input")
 
@@ -177,14 +178,11 @@ if __name__ == "__main__":
     config.add_argument('--debug', default=False, action="store_true", help="Debug mode")
     config.add_argument('--run-equilibration', default=False, action="store_true", help="Run equilibration")
     config.add_argument('--togromacs', default=False, action="store_true", help="Generate GROMACS files")
-    config.add_argument('--gromacs-bin-dir', help="GROMOS binaries", action=env_default("GROMACS_BIN"))
+    config.add_argument('--not-check-sum', default=False, action="store_true", help="No check sum of organic compounds")
     args = parser.parse_args()
 
     if not args.gromosxx_bin_dir or not args.gromospp_bin_dir or not args.vsomm_building_blocks_dir:
         exit(parser.print_usage())
-
-    if args.togromacs and args.gromacs_bin_dir is None:
-        parser.error("--togromacs requires --gromacs-bin-dir")
 
     if (args.number_of_building_blocks % args.building_blocks_per_molecule != 0):
         parser.error("The number of building_blocks (number_of_building_blocks:%s) must be a multiply of the number of building_blocks per molecule (building_blocks_per_molecule:%s)" % (
@@ -201,12 +199,16 @@ if __name__ == "__main__":
         sum_fractions = args.carbonyl_fraction + args.carboxyl_fraction + args.aromatic_fraction + \
             args.acetal_fraction + args.heteroaliphatic_fraction + args.aliphatic_fraction
 
-    if np.abs(sum_fractions - 1.00) > 0.02:
-        parser.error(
-            "Sum of fractions of organic compounds composition\n must be equal to 1, current sum is: " + str(sum_fractions))
-    elif np.abs(sum_fractions - 1.00) != 0.00:
-        #raise Warning("Sum of fractions of organic compounds composition\n must be equal to 1, current sum is: " + str(sum_fractions))
-        print("Sum of fractions of organic compounds composition\n must be equal to 1, current sum is: " + str(sum_fractions))
+    if not args.not_check_sum:
+        print("YOU ARE USING THE NOT-CHECK-SUM OPTION \nJUST TAKE CARE")
+        if np.abs(sum_fractions - 1.00) > 0.02:
+            parser.error(
+                "Sum of fractions of organic compounds composition\n must be equal to 1, current sum is: " + str(sum_fractions))
+        elif np.abs(sum_fractions - 1.00) != 0.00:
+            #raise Warning("Sum of fractions of organic compounds composition\n must be equal to 1, current sum is: " + str(sum_fractions))
+            print("Sum of fractions of organic compounds composition\n must be equal to 1, current sum is: " + str(sum_fractions))
+
+
 
     print(args)
     args = vars(args)
