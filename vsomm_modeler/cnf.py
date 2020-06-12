@@ -246,5 +246,5 @@ class CNF():
                 vals['position'] = self.positions[i]
                 file.write(position_format.format(**vals))
             
-            boxsize_format = "{boxsize[0]: 10.5f}{boxsize[1]: 10.5f}{boxsize[2]: 10.5f}"
+            boxsize_format = "{boxsize[0]: 10.5f}{boxsize[1]: 10.5f}{boxsize[2]: 10.5f}\n"
             file.write(boxsize_format.format(boxsize=self.boxsize))
