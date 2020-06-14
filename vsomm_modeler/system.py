@@ -750,12 +750,18 @@ class System():
     def set_pH(self):
         for position, building_block in enumerate(self.current_state.list_building_blocks):
             if building_block in self.protonated_state and self.building_blocks[building_block]['charge'] == -1:
-                # throw a dice and look if you get 1
-                if 1 == random.randint(1, int(self.deprot_prot_fraction)):
+                if self.deprot_prot_fraction < 2:
                     new_building_block = self.protonated_state[building_block]
                     self.current_state.modify(self.building_blocks[building_block], position, self.building_blocks[new_building_block])
                     self.current_state.set_status()
                     self.current_state.list_building_blocks_to_count = deepcopy(self.current_state.list_building_blocks)
+                else:
+                    # throw a dice and look if you get 1
+                    if 1 == random.randint(1, int(self.deprot_prot_fraction)):
+                        new_building_block = self.protonated_state[building_block]
+                        self.current_state.modify(self.building_blocks[building_block], position, self.building_blocks[new_building_block])
+                        self.current_state.set_status()
+                        self.current_state.list_building_blocks_to_count = deepcopy(self.current_state.list_building_blocks)
 
 
     def solvation_boxsize(self):
